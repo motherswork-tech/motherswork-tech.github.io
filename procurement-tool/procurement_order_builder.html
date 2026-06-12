@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Order Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --surface2: #1a1e2a;
+    --border: #242836;
+    --accent: #e8ff47;
+    --accent2: #47b4ff;
+    --warn: #ff8c47;
+    --danger: #ff4766;
+    --ok: #47ffb4;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,255,71,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,255,71,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 48px;
+    gap: 24px;
+  }
+  .header-left {}
+  .brand-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0.8;
+  }
+  h1 {
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  h1 span {
+    color: var(--accent);
+  }
+  .header-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+  }
+  .bq-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .bq-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 8px var(--ok);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  /* STEP LAYOUT */
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 768px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .card:hover::before { opacity: 1; }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+    opacity: 0.7;
+  }
+  .card h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(232,255,71,0.04);
+  }
+  .upload-zone input {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .upload-icon {
+    font-size: 28px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .upload-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .upload-hint {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .upload-status {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    display: inline-block;
+    background: var(--surface2);
+    color: var(--muted);
+  }
+  .upload-status.loaded {
+    background: rgba(71,255,180,0.1);
+    color: var(--ok);
+  }
+
+  /* COLUMN MAP */
+  .col-map {
+    margin-top: 16px;
+    display: none;
+  }
+  .col-map.visible { display: block; }
+  .col-map-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+  .col-map-row {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .col-map-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+  }
+  select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    width: 100%;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  select:focus { border-color: var(--accent); }
+
+  /* PARAMS */
+  .params-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .param-group { display: flex; flex-direction: column; gap: 6px; }
+  label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  input[type="number"], input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--accent); }
+
+  .param-note {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  /* MTC HINT */
+  .mtc-hint {
+    background: var(--surface2);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+  .mtc-hint strong { color: var(--accent); }
+
+  /* GENERATE BTN */
+  .btn-generate {
+    width: 100%;
+    background: var(--accent);
+    color: #0d0f14;
+    border: none;
+    border-radius: 8px;
+    padding: 14px 24px;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 8px;
+  }
+  .btn-generate:hover {
+    background: #f5ff80;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 24px rgba(232,255,71,0.25);
+  }
+  .btn-generate:active { transform: translateY(0); }
+  .btn-generate:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  /* PROGRESS */
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 12px 0;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+  .progress-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* RESULTS SECTION */
+  #results-section { display: none; }
+  #results-section.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .results-title {
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .results-actions { display: flex; gap: 10px; }
+
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* KPI STRIP */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+  .kpi-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .kpi-value.accent { color: var(--accent); }
+  .kpi-value.ok { color: var(--ok); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-value.danger { color: var(--danger); }
+  .kpi-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* BUDGET BAR */
+  .budget-bar-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .budget-bar-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .budget-track {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .budget-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.8s ease;
+  }
+  .budget-fill.under { background: linear-gradient(90deg, var(--ok), var(--accent)); }
+  .budget-fill.over { background: linear-gradient(90deg, var(--warn), var(--danger)); }
+
+  /* TABLE WRAPPER */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .table-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filter-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn.active, .filter-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,255,71,0.05);
+  }
+  .search-input {
+    padding: 6px 12px;
+    font-size: 12px;
+    width: 200px;
+  }
+  .table-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .tbl-scroll {
+    overflow-x: auto;
+    max-height: 520px;
+    overflow-y: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  thead { position: sticky; top: 0; z-index: 10; }
+  thead tr { background: var(--surface2); }
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s;
+  }
+  th:hover { color: var(--accent); }
+  th.sort-asc::after { content: ' ↑'; color: var(--accent); }
+  th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+
+  tbody tr {
+    border-bottom: 1px solid rgba(36,40,54,0.6);
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: var(--surface2); }
+
+  td {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 14px;
+    white-space: nowrap;
+  }
+  td.product-name {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  td.numeric { text-align: right; color: var(--muted); }
+  td.numeric.highlight { color: var(--text); }
+  td.cost { color: var(--accent2); }
+  td.order-qty {
+    color: var(--accent);
+    font-weight: 600;
+    background: rgba(232,255,71,0.07);
+    border-left: 2px solid rgba(232,255,71,0.25);
+  }
+  td.order-value {
+    color: var(--ok);
+    font-weight: 600;
+    background: rgba(71,255,180,0.07);
+    border-right: 2px solid rgba(71,255,180,0.2);
+  }
+
+  /* RISK BADGE */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .badge.stockout { background: rgba(255,71,102,0.15); color: var(--danger); }
+  .badge.low { background: rgba(255,140,71,0.15); color: var(--warn); }
+  .badge.ok { background: rgba(71,255,180,0.1); color: var(--ok); }
+  .badge.over { background: rgba(107,114,128,0.15); color: var(--muted); }
+  .badge.no-sales { background: rgba(107,114,128,0.1); color: var(--muted); }
+
+  /* SPARKLINE */
+  .spark {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 20px;
+    vertical-align: middle;
+  }
+  .spark-bar {
+    width: 5px;
+    border-radius: 1px;
+    background: var(--accent2);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    min-height: 2px;
+  }
+  .spark-bar:last-child { opacity: 1; background: var(--accent); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-text { font-size: 14px; }
+
+  /* TOOLTIP */
+  .tooltip-wrap { position: relative; display: inline-block; }
+  .tooltip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1e2a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  }
+  .tooltip-wrap:hover .tooltip { opacity: 1; }
+
+  th.order-col-qty {
+    background: rgba(232,255,71,0.06);
+    border-left: 2px solid rgba(232,255,71,0.25);
+    color: var(--accent) !important;
+  }
+  th.order-col-val {
+    background: rgba(71,255,180,0.06);
+    border-right: 2px solid rgba(71,255,180,0.2);
+    color: var(--ok) !important;
+  }
+  th.has-tooltip { cursor: help; }
+  .th-tooltip {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1e2a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    white-space: nowrap;
+    z-index: 200;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    line-height: 1.8;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    pointer-events: none;
+  }
+  th.has-tooltip:hover .th-tooltip { display: block; }
+  td.excluded-month { color: var(--muted) !important; opacity: 0.4; font-style: italic; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* SAMPLE DOWNLOAD */
+  .sample-link {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent2);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+    cursor: pointer;
+  }
+  .sample-link:hover { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="brand-tag">// procurement · v2.0</div>
+      <h1>Purchase Order <span>Builder</span></h1>
+      <div class="header-sub">Upload brand list → input budget → get replenishment plan</div>
+    </div>
+    <div class="bq-badge" id="bq-badge">
+      <div class="bq-dot"></div>
+      BigQuery · retail-intelligence-489905
+    </div>
+  </div>
+
+  <!-- STEP CARDS -->
+  <div class="steps">
+
+    <!-- STEP 1: UPLOAD -->
+    <div class="card">
+      <div class="step-num">STEP 01</div>
+      <h2>Upload Brand Price List</h2>
+
+      <div class="upload-zone" id="drop-zone">
+        <input type="file" id="csv-file" accept=".csv">
+        <span class="upload-icon">⬆</span>
+        <div class="upload-title">Drop CSV or click to browse</div>
+        <div class="upload-hint">Required columns: barcode, product name, unit cost</div>
+        <div class="upload-status" id="upload-status">No file loaded</div>
+      </div>
+
+      <a class="sample-link" id="download-sample">↓ download sample template</a>
+
+      <!-- COLUMN MAPPING -->
+      <div class="col-map" id="col-map">
+        <div class="col-map-title">Map your columns →</div>
+        <div class="col-map-row">
+          <span class="col-map-label">Barcode</span>
+          <select id="map-barcode"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Product Name</span>
+          <select id="map-name"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Unit Cost (SGD)</span>
+          <select id="map-cost"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: PARAMS -->
+    <div class="card">
+      <div class="step-num">STEP 02</div>
+      <h2>Order Parameters</h2>
+
+      <div class="params-grid">
+        <div class="param-group">
+          <label>PO Budget (SGD)</label>
+          <input type="number" id="budget" placeholder="e.g. 50000" min="0" step="1000">
+          <span class="param-note">Leave blank = no cap</span>
+        </div>
+        <div class="param-group">
+          <label>Lead Time (months)</label>
+          <input type="number" id="lead-time" value="2" min="1" max="12" step="0.5">
+          <span class="param-note">Default: 2 months</span>
+        </div>
+        <div class="param-group">
+          <label>Target SOH (MTC)</label>
+          <input type="number" id="target-mtc" value="3" min="1" max="12" step="0.5">
+          <span class="param-note">Target months to cover</span>
+        </div>
+        <div class="param-group">
+          <label>Brand Filter</label>
+          <input type="text" id="brand-filter" placeholder="e.g. Stokke">
+          <span class="param-note">Optional</span>
+        </div>
+      </div>
+
+      <div class="mtc-hint">
+        <strong>Order formula:</strong> (target MTC + lead time) × avg monthly sales − current SOH<br>
+        <strong>Risk:</strong> &lt;2 months = Low Stock · &gt;4 months = Overstock
+      </div>
+
+      <div id="progress-wrap" style="display:none; margin-top:16px;">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-label" id="progress-label">Querying BigQuery...</div>
+      </div>
+
+      <button class="btn-generate" id="btn-generate" disabled>
+        Generate Order Plan →
+      </button>
+    </div>
+
+  </div><!-- end steps -->
+
+  <!-- STEP 1b: ODOO INVENTORY -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="step-num">STEP 01b</div>
+    <h2>Upload Odoo Inventory (SOH)</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      <div>
+        <div class="upload-zone" id="drop-zone-soh">
+          <input type="file" id="soh-file" accept=".csv">
+          <span class="upload-icon">⬆</span>
+          <div class="upload-title">Drop Odoo inventory CSV</div>
+          <div class="upload-hint">Barcode · Product/Brand · Product · Warehouse · Available Quantity · Product/Sales Price</div>
+          <div class="upload-status" id="soh-upload-status">No file loaded</div>
+        </div>
+        <div class="mtc-hint" style="margin-top:12px;">
+          Export from Odoo → Inventory → Products.<br>
+          Upload using <strong>V2 column name map</strong> in BigQuery.<br>
+          SOH is summed across all warehouses per barcode.
+        </div>
+      </div>
+      <div id="soh-col-map" style="display:none;">
+        <div class="col-map-title">Map your columns →</div>
+        <div class="col-map-row">
+          <span class="col-map-label">Barcode</span>
+          <select id="soh-map-barcode"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Brand</span>
+          <select id="soh-map-brand"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Product</span>
+          <select id="soh-map-product"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Warehouse</span>
+          <select id="soh-map-warehouse"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Avail. Qty</span>
+          <select id="soh-map-qty"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">RRP</span>
+          <select id="soh-map-price"></select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results-section">
+
+    <div class="results-header">
+      <div class="results-title">Order Plan</div>
+      <div class="results-actions">
+        <button class="btn-secondary" id="btn-export-csv">↓ Export CSV</button>
+        <button class="btn-secondary" id="btn-copy-formula">Copy BQ Query</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-strip" id="kpi-strip"></div>
+
+    <!-- BUDGET BAR -->
+    <div class="budget-bar-wrap" id="budget-bar-wrap" style="display:none">
+      <div class="budget-bar-header">
+        <span style="color:var(--muted)">PO Value vs Budget</span>
+        <span id="budget-bar-label" style="color:var(--accent); font-weight:500;"></span>
+      </div>
+      <div class="budget-track">
+        <div class="budget-fill" id="budget-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="table-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="stockout">Stockout</button>
+          <button class="filter-btn" data-filter="low">Low Stock</button>
+          <button class="filter-btn" data-filter="ok">Healthy</button>
+          <button class="filter-btn" data-filter="over">Overstock</button>
+          <button class="filter-btn" data-filter="order">Has Order</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" class="search-input" id="search-input" placeholder="Search SKU...">
+          <span class="table-count" id="table-count"></span>
+        </div>
+      </div>
+      <div class="tbl-scroll">
+        <table id="results-table">
+          <thead id="results-thead"></thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- end results -->
+
+</div><!-- container -->
+
+<script>
+// ==================== DATA ====================
+let uploadedRows = [];
+let resultsData = [];
+let sortCol = null, sortDir = 1;
+let activeFilter = 'all';
+let searchTerm = '';
+
+const MONTHS = ['Oct 2025','Nov 2025','Dec 2025','Jan 2026','Feb 2026','Mar 2026'];
+const SHORT_MONTHS = ['Oct','Nov','Dec','Jan','Feb','Mar'];
+
+// ==================== DEMO SALES DATA (BigQuery simulation) ====================
+// Simulates what BigQuery would return — L6M qty sold per barcode
+const DEMO_BQ_SALES = {
+  // Stokke Tripp Trapp
+  '7040355305416': [12,15,8,10,9,11],
+  '7040355305423': [8,10,6,7,8,9],
+  '7040355305430': [5,6,4,3,5,6],
+  '7040355305447': [22,28,18,20,19,24],
+  '7040355309889': [3,4,2,2,3,4],
+  '7040355309896': [14,16,12,15,13,17],
+  '7040355316450': [7,8,5,6,7,8],
+  '7040355316467': [4,5,3,4,4,5],
+  '7040355316474': [18,22,14,16,15,20],
+  '7040355316481': [2,3,1,2,2,3],
+  '7040355316498': [9,11,7,8,9,10],
+  '7040355316504': [6,7,5,5,6,7],
+  '5015827031989': [11,13,9,10,11,12],
+  '5015827031996': [7,9,6,7,7,8],
+  '5015827032009': [4,5,3,4,4,5],
+  '5015827032016': [15,18,12,14,14,16],
+  '5015827034706': [8,10,7,8,8,9],
+  '5015827034713': [3,4,2,3,3,4],
+  // Bugaboo
+  '8717447112113': [6,7,4,5,5,7],
+  '8717447112120': [4,5,3,4,4,5],
+  '8717447112137': [9,11,7,8,9,10],
+  '8717447112144': [2,3,1,2,2,3],
+  '8717447187516': [14,16,10,12,12,15],
+  '8717447187523': [5,6,4,5,5,6],
+  '8717447187530': [7,8,5,6,7,8],
+  // Joolz
+  '8715839072037': [3,4,2,3,3,4],
+  '8715839072044': [8,10,6,7,8,9],
+  '8715839072051': [5,6,4,5,5,6],
+  '8715839072068': [1,2,1,1,1,2],
+  // UPPAbaby
+  '0810259000001': [9,11,7,8,9,10],
+  '0810259000018': [6,7,5,6,6,7],
+  '0810259000025': [4,5,3,4,4,5],
+  '0810259000032': [12,14,9,11,11,13],
+};
+
+// ==================== API CONFIG ====================
+const API_URL = 'https://procurement-api-kgt3f3f3uq-as.a.run.app';
+const DEMO_MODE = !API_URL;
+
+async function queryBigQuery(barcodes, sohRows) {
+  if (DEMO_MODE) {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        const result = {};
+        barcodes.forEach(bc => {
+          const key = String(bc).trim();
+          const monthly = DEMO_BQ_SALES[key] || MONTHS.map(() => Math.max(0, Math.floor(Math.random()*15 - 3)));
+          result[key] = { monthly, soh: Math.round(monthly.reduce((a,b)=>a+b,0)/6 * (0.5 + Math.random()*2)), adj_avg: null, active_months: 6, excluded: monthly.map(()=>false) };
+        });
+        resolve(result);
+      }, 1200);
+    });
+  }
+
+  // 1. Upload SOH if provided
+  if (sohRows && sohRows.length > 0) {
+    try {
+      await fetch(`${API_URL}/soh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: sohRows })
+      });
+    } catch(e) { console.warn('SOH upload failed:', e); }
+  }
+
+  // 2. Fetch sales + SOH from BigQuery
+  const response = await fetch(`${API_URL}/sales`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ barcodes: barcodes.map(b => String(b).trim()) })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `API error ${response.status}`);
+  }
+  const json = await response.json();
+
+  // Update month labels from API
+  if (json.data[0]?.months) {
+    json.data[0].months.forEach((m, i) => {
+      if (i < MONTHS.length) { MONTHS[i] = m.label; SHORT_MONTHS[i] = m.label.slice(0,3); }
+    });
+  }
+
+  // Remap to { barcode: { monthly, soh, adj_avg, active_months, excluded } }
+  const result = {};
+  json.data.forEach(item => {
+    result[item.barcode] = {
+      monthly: item.months.map(m => m.qty),
+      excluded: item.months.map(m => m.excluded),
+      exclusion_reasons: item.months.map(m => m.exclusion_reason),
+      soh: item.soh,
+      adj_avg: item.adj_avg_monthly,
+      active_months: item.active_months,
+      last_sale_date: item.last_sale_date,
+    };
+  });
+  return result;
+}
+
+// ==================== BARCODE NORMALISER ====================
+function normaliseBarcode(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  // Handle scientific notation e.g. 7.04036E+12 → 7040360000000
+  if (/^[\d.]+[eE][+\-]?\d+$/.test(s)) {
+    return String(Math.round(parseFloat(s)));
+  }
+  return s;
+}
+let sohUploadedRows = [];
+
+const sohDropZone = document.getElementById('drop-zone-soh');
+const sohFileInput = document.getElementById('soh-file');
+const sohUploadStatus = document.getElementById('soh-upload-status');
+const sohColMap = document.getElementById('soh-col-map');
+
+sohDropZone.addEventListener('dragover', e => { e.preventDefault(); sohDropZone.classList.add('drag-over'); });
+sohDropZone.addEventListener('dragleave', () => sohDropZone.classList.remove('drag-over'));
+sohDropZone.addEventListener('drop', e => {
+  e.preventDefault(); sohDropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) parseSOHCSV(f);
+});
+sohFileInput.addEventListener('change', e => { if (e.target.files[0]) parseSOHCSV(e.target.files[0]); });
+
+function parseSOHCSV(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete: res => {
+      sohUploadedRows = res.data;
+      const cols = res.meta.fields || [];
+      populateSOHColumnMap(cols);
+      sohUploadStatus.textContent = `✓ ${sohUploadedRows.length} rows loaded`;
+      sohUploadStatus.className = 'upload-status loaded';
+      sohColMap.style.display = 'block';
+    }
+  });
+}
+
+function populateSOHColumnMap(cols) {
+  ['soh-map-barcode','soh-map-brand','soh-map-product','soh-map-warehouse','soh-map-qty','soh-map-price'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">-- select --</option>';
+    cols.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+  });
+  const lower = cols.map(c => c.toLowerCase());
+  const detect = aliases => { for (const a of aliases) { const i = lower.findIndex(c => c.includes(a)); if (i >= 0) return cols[i]; } return ''; };
+  document.getElementById('soh-map-barcode').value   = detect(['barcode','ean','gtin']);
+  document.getElementById('soh-map-brand').value     = detect(['brand']);
+  document.getElementById('soh-map-product').value   = detect(['product','name','description']);
+  document.getElementById('soh-map-warehouse').value = detect(['warehouse']);
+  document.getElementById('soh-map-qty').value       = detect(['available_quantity','available quantity','available','qty','quantity','stock']);
+  document.getElementById('soh-map-price').value     = detect(['sales_price','sales price','rrp','price']);
+}
+
+function buildSOHRows() {
+  if (!sohUploadedRows.length) return [];
+  const bc  = document.getElementById('soh-map-barcode').value;
+  const br  = document.getElementById('soh-map-brand').value;
+  const pr  = document.getElementById('soh-map-product').value;
+  const wh  = document.getElementById('soh-map-warehouse').value;
+  const qty = document.getElementById('soh-map-qty').value;
+  const rp  = document.getElementById('soh-map-price').value;
+  if (!bc || !qty) return [];
+  return sohUploadedRows
+    .filter(r => r[bc] && r[qty] !== undefined && r[qty] !== '')
+    .map(r => ({
+      Barcode:             normaliseBarcode(r[bc]),
+      Product_Brand:       br ? (r[br] || '') : '',
+      Product:             pr ? (r[pr] || '') : '',
+      Warehouse:           wh ? (r[wh] || '') : '',
+      Available_Quantity:  parseInt(String(r[qty]).replace(/[^0-9-]/g,'')) || 0,
+      Product_Sales_Price: rp ? (parseFloat(String(r[rp]).replace(/[^0-9.]/g,'')) || null) : null,
+    }));
+}
+
+// ==================== FILE UPLOAD ====================
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('csv-file');
+const uploadStatus = document.getElementById('upload-status');
+const colMap = document.getElementById('col-map');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) parseCSV(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) parseCSV(e.target.files[0]); });
+
+function parseCSV(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete: res => {
+      uploadedRows = res.data;
+      const cols = res.meta.fields || [];
+      populateColumnMap(cols);
+      uploadStatus.textContent = `✓ ${uploadedRows.length} products loaded`;
+      uploadStatus.className = 'upload-status loaded';
+      colMap.classList.add('visible');
+      checkReady();
+    }
+  });
+}
+
+function populateColumnMap(cols) {
+  ['map-barcode','map-name','map-cost'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">-- select --</option>';
+    cols.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+  });
+  const lower = cols.map(c => c.toLowerCase());
+  const detect = (aliases) => {
+    for (const a of aliases) {
+      const idx = lower.findIndex(c => c.includes(a));
+      if (idx >= 0) return cols[idx];
+    }
+    return '';
+  };
+  document.getElementById('map-barcode').value = detect(['barcode','ean','gtin','upc','code']);
+  document.getElementById('map-name').value = detect(['product','name','description','item','sku','title']);
+  document.getElementById('map-cost').value = detect(['cost','price','purchase','unit price','unit_cost','buy','supplier']);
+}
+
+['map-barcode','map-name','map-cost','budget','lead-time','target-mtc'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', checkReady);
+  document.getElementById(id)?.addEventListener('input', checkReady);
+});
+
+function checkReady() {
+  const hasFile = uploadedRows.length > 0;
+  const hasMapping = document.getElementById('map-barcode').value &&
+                     document.getElementById('map-name').value &&
+                     document.getElementById('map-cost').value;
+  document.getElementById('btn-generate').disabled = !(hasFile && hasMapping);
+}
+
+// ==================== GENERATE ====================
+document.getElementById('btn-generate').addEventListener('click', async () => {
+  const barcodeCol = document.getElementById('map-barcode').value;
+  const nameCol    = document.getElementById('map-name').value;
+  const costCol    = document.getElementById('map-cost').value;
+  const budget     = parseFloat(document.getElementById('budget').value) || Infinity;
+  const leadTime   = parseFloat(document.getElementById('lead-time').value) || 2;
+  const targetMTC  = parseFloat(document.getElementById('target-mtc').value) || 3;
+
+  const progressWrap  = document.getElementById('progress-wrap');
+  const progressFill  = document.getElementById('progress-fill');
+  const progressLabel = document.getElementById('progress-label');
+  progressWrap.style.display = 'block';
+  document.getElementById('btn-generate').disabled = true;
+
+  const barcodes = uploadedRows.map(r => normaliseBarcode(r[barcodeCol]));
+  const sohRows  = buildSOHRows();
+
+  const steps = [
+    [20, 'Uploading SOH to BigQuery...'],
+    [45, 'Querying L6M sales data...'],
+    [70, 'Calculating adjusted averages...'],
+    [88, 'Applying budget constraints...'],
+    [100, 'Finalising order plan...']
+  ];
+  let stepIdx = 0;
+  const stepInterval = setInterval(() => {
+    if (stepIdx < steps.length - 1) {
+      const [pct, msg] = steps[stepIdx];
+      progressFill.style.width = pct + '%';
+      progressLabel.textContent = msg;
+      stepIdx++;
+    }
+  }, 400);
+
+  let salesData;
+  try {
+    salesData = await queryBigQuery(barcodes, sohRows);
+  } catch(e) {
+    clearInterval(stepInterval);
+    progressLabel.textContent = `Error: ${e.message}`;
+    progressFill.style.background = 'var(--danger)';
+    document.getElementById('btn-generate').disabled = false;
+    return;
+  }
+
+  clearInterval(stepInterval);
+  progressFill.style.width = '100%';
+  progressLabel.textContent = 'Done.';
+  setTimeout(() => { progressWrap.style.display = 'none'; progressFill.style.width = '0%'; }, 600);
+
+  resultsData = uploadedRows.map(row => {
+    const barcode = normaliseBarcode(row[barcodeCol]);
+    const name = row[nameCol] || '';
+    const cost = parseFloat(String(row[costCol]).replace(/[^0-9.]/g, '')) || 0;
+    const apiData = salesData[barcode] || { monthly: [0,0,0,0,0,0], excluded: [false,false,false,false,false,false], exclusion_reasons: [], soh: null, adj_avg: 0, active_months: 0, last_sale_date: null };
+    const monthly = apiData.monthly;
+    const excluded = apiData.excluded;
+    const total = monthly.reduce((a,b) => a+b, 0);
+    const avg = round(total / 6, 2);
+    const adj_avg = apiData.adj_avg ?? avg;
+    const active_months = apiData.active_months ?? 6;
+
+    // SOH comes from BigQuery (soh table) via API
+    let soh;
+    if (apiData.soh !== null && apiData.soh !== undefined) {
+      soh = apiData.soh;
+    } else {
+      soh = 0; // not found in SOH table — treat as unknown, show as 0
+    }
+
+    const mtc = adj_avg > 0 ? soh / adj_avg : 99;
+    const rawOrder = Math.max(0, Math.round((targetMTC + leadTime) * adj_avg - soh));
+    const orderValue = rawOrder * cost;
+
+    let risk = 'no-sales';
+    if (adj_avg > 0) {
+      if (soh === 0) risk = 'stockout';
+      else if (mtc < 2) risk = 'low';
+      else if (mtc > 4) risk = 'over';
+      else risk = 'ok';
+    }
+
+    return { barcode, name, cost, monthly, excluded, exclusion_reasons: apiData.exclusion_reasons || [], total, avg, adj_avg, active_months, soh, mtc, rawOrder, orderValue, risk, last_sale_date: apiData.last_sale_date, ...Object.fromEntries(MONTHS.map((m,i) => [m, monthly[i]])) };
+  });
+
+  function round(v, d) { return Math.round(v * 10**d) / 10**d; }
+
+  // Apply budget cap: prioritise stockouts → low → ok, skip over
+  let runningTotal = 0;
+  resultsData.sort((a,b) => {
+    const priority = {stockout:0, low:1, ok:2, over:3, 'no-sales':4};
+    return priority[a.risk] - priority[b.risk] || b.avg - a.avg;
+  });
+  resultsData.forEach(r => {
+    if (budget !== Infinity) {
+      if (runningTotal + r.orderValue <= budget) {
+        runningTotal += r.orderValue;
+      } else {
+        // Scale down qty to fit
+        const remaining = Math.max(0, budget - runningTotal);
+        const fitsQty = r.cost > 0 ? Math.floor(remaining / r.cost) : 0;
+        r.rawOrder = Math.min(r.rawOrder, fitsQty);
+        r.orderValue = r.rawOrder * r.cost;
+        runningTotal += r.orderValue;
+      }
+    }
+  });
+
+  // Re-sort by barcode
+  resultsData.sort((a,b) => a.barcode.localeCompare(b.barcode));
+
+  renderResults(budget);
+  document.getElementById('btn-generate').disabled = false;
+});
+
+// ==================== RENDER RESULTS ====================
+function renderResults(budget) {
+  const section = document.getElementById('results-section');
+  section.classList.add('visible');
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  renderKPIs(budget);
+  renderBudgetBar(budget);
+  renderTable();
+}
+
+function renderKPIs(budget) {
+  const total = resultsData.reduce((s,r) => s + r.orderValue, 0);
+  const units = resultsData.reduce((s,r) => s + r.rawOrder, 0);
+  const stockouts = resultsData.filter(r => r.risk === 'stockout').length;
+  const lowStock = resultsData.filter(r => r.risk === 'low').length;
+  const hasOrder = resultsData.filter(r => r.rawOrder > 0).length;
+  const avgMTC = resultsData.filter(r => r.avg > 0).reduce((s,r,_,a) => s + r.mtc/a.length, 0);
+  const pct = budget !== Infinity ? (total/budget*100).toFixed(0) : null;
+
+  document.getElementById('kpi-strip').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Total PO Value</div>
+      <div class="kpi-value accent">$${total.toLocaleString('en',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+      ${pct ? `<div class="kpi-sub">${pct}% of budget</div>` : ''}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Units to Order</div>
+      <div class="kpi-value">${units.toLocaleString()}</div>
+      <div class="kpi-sub">${hasOrder} SKUs with orders</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Stockouts</div>
+      <div class="kpi-value danger">${stockouts}</div>
+      <div class="kpi-sub">zero SOH with sales</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Low Stock</div>
+      <div class="kpi-value warn">${lowStock}</div>
+      <div class="kpi-sub">&lt; 2 months cover</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Avg Current MTC</div>
+      <div class="kpi-value">${avgMTC.toFixed(1)}m</div>
+      <div class="kpi-sub">across active SKUs</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total SKUs</div>
+      <div class="kpi-value">${resultsData.length}</div>
+      <div class="kpi-sub">from uploaded list</div>
+    </div>
+  `;
+}
+
+function renderBudgetBar(budget) {
+  const wrap = document.getElementById('budget-bar-wrap');
+  if (budget === Infinity) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const total = resultsData.reduce((s,r) => s + r.orderValue, 0);
+  const pct = Math.min(100, total/budget*100);
+  const fill = document.getElementById('budget-fill');
+  fill.className = 'budget-fill ' + (pct > 95 ? 'over' : 'under');
+  setTimeout(() => fill.style.width = pct + '%', 50);
+  document.getElementById('budget-bar-label').textContent =
+    `$${total.toLocaleString('en',{maximumFractionDigits:0})} / $${budget.toLocaleString('en',{maximumFractionDigits:0})} (${pct.toFixed(0)}%)`;
+}
+
+function renderTable() {
+  const thead = document.getElementById('results-thead');
+  const tbody = document.getElementById('results-tbody');
+
+  const cols = [
+    { key: 'barcode', label: 'Barcode' },
+    { key: 'name', label: 'Product', cls: 'product-name' },
+    { key: 'cost', label: 'Unit Cost', cls: 'cost numeric' },
+    ...SHORT_MONTHS.map((m,i) => ({ key: MONTHS[i], label: m, cls: 'numeric' })),
+    { key: 'adj_avg', label: 'Adj Avg/Mo', cls: 'numeric highlight', tooltip: 'Average monthly sales excluding stockout months\n(months with 0 sales sandwiched between months with sales)\nUsed for order quantity calculation' },
+    { key: 'soh', label: 'SOH', cls: 'numeric highlight' },
+    { key: 'mtc', label: 'MTC', cls: 'numeric' },
+    { key: 'risk', label: 'Risk ⓘ', cls: 'risk-header', tooltip: 'Stockout: SOH = 0 with sales history\nLow Stock: MTC < 2 months\nHealthy: MTC 2–4 months\nOverstock: MTC > 4 months\nNo Sales: no L6M sales data' },
+    { key: 'trend', label: 'Trend', cls: '' },
+    { key: 'rawOrder', label: 'Order Qty', cls: 'order-qty numeric highlight', hcls: 'order-col-qty' },
+    { key: 'orderValue', label: 'Order Value', cls: 'order-value numeric highlight', hcls: 'order-col-val' },
+  ];
+
+  thead.innerHTML = `<tr>${cols.map(c =>
+    c.tooltip
+      ? `<th data-key="${c.key}" class="${sortCol===c.key ? (sortDir>0?'sort-asc':'sort-desc') : ''} has-tooltip${c.hcls?' '+c.hcls:''}" style="position:relative">${c.label}<div class="th-tooltip">${c.tooltip.replace(/\n/g,'<br>')}</div></th>`
+      : `<th data-key="${c.key}" class="${sortCol===c.key ? (sortDir>0?'sort-asc':'sort-desc') : ''}${c.hcls?' '+c.hcls:''}">${c.label}</th>`
+  ).join('')}</tr>`;
+
+  thead.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.dataset.key;
+      if (sortCol === k) sortDir *= -1;
+      else { sortCol = k; sortDir = 1; }
+      renderTable();
+    });
+  });
+
+  let data = [...resultsData];
+
+  // Filter
+  if (activeFilter !== 'all') {
+    if (activeFilter === 'order') data = data.filter(r => r.rawOrder > 0);
+    else data = data.filter(r => r.risk === activeFilter);
+  }
+
+  // Search
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    data = data.filter(r =>
+      r.name.toLowerCase().includes(q) || r.barcode.includes(q)
+    );
+  }
+
+  // Sort
+  if (sortCol) {
+    data.sort((a,b) => {
+      const va = a[sortCol], vb = b[sortCol];
+      if (typeof va === 'number') return (va - vb) * sortDir;
+      return String(va).localeCompare(String(vb)) * sortDir;
+    });
+  }
+
+  document.getElementById('table-count').textContent = `${data.length} SKUs`;
+
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${cols.length}">
+      <div class="empty-state">
+        <div class="empty-icon">○</div>
+        <div class="empty-text">No results match this filter.</div>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  const RISK_LABEL = { stockout:'Stockout', low:'Low Stock', ok:'Healthy', over:'Overstock', 'no-sales':'No Sales' };
+
+  tbody.innerHTML = data.map(r => {
+    const months = MONTHS.map(m => r[m] || 0);
+    const maxM = Math.max(...months, 1);
+    const spark = months.map(v =>
+      `<div class="spark-bar" style="height:${Math.max(10, Math.round(v/maxM*20))}px"></div>`
+    ).join('');
+
+    return `<tr>
+      <td>${r.barcode}</td>
+      <td class="product-name" title="${r.name}">${r.name}</td>
+      <td class="cost numeric">$${r.cost.toFixed(2)}</td>
+      ${monthly.map((v,i) => `<td class="numeric${r.excluded[i] ? ' excluded-month' : ''}" title="${r.excluded[i] ? (r.exclusion_reasons?.[i] || 'Excluded: stocked out early in month') : ''}">${v||0}${r.excluded[i]?'*':''}</td>`).join('')}
+      <td class="numeric highlight">${r.adj_avg.toFixed(1)}</td>
+      <td class="numeric highlight">${r.soh}</td>
+      <td class="numeric">${r.avg>0 ? r.mtc.toFixed(1)+'m' : '—'}</td>
+      <td><span class="badge ${r.risk}">${RISK_LABEL[r.risk]}</span></td>
+      <td><div class="spark">${spark}</div></td>
+      <td class="order-qty numeric highlight">${r.rawOrder > 0 ? r.rawOrder : '—'}</td>
+      <td class="order-value numeric highlight">${r.rawOrder > 0 ? '$'+r.orderValue.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ==================== FILTERS + SEARCH ====================
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    renderTable();
+  });
+});
+
+document.getElementById('search-input').addEventListener('input', e => {
+  searchTerm = e.target.value;
+  renderTable();
+});
+
+// ==================== EXPORT CSV ====================
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  const headers = ['Barcode','Product Name','Unit Cost (SGD)',...MONTHS,'Avg/Mo','SOH','MTC','Risk','Suggested Order Qty','Suggested Order Value (SGD)'];
+  const rows = resultsData.map(r => [
+    r.barcode, r.name, r.cost,
+    ...MONTHS.map(m => r[m]||0),
+    r.avg.toFixed(1), r.soh, r.avg>0?r.mtc.toFixed(2):'', r.risk,
+    r.rawOrder, r.orderValue.toFixed(2)
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `PO_Plan_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+});
+
+// ==================== COPY BQ QUERY ====================
+document.getElementById('btn-copy-formula').addEventListener('click', () => {
+  const barcodes = resultsData.map(r => `'${r.barcode}'`).join(',');
+  const query = `-- L6M Sales by Barcode for PO Builder
+SELECT
+  barcode,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2025-10-01' THEN qty_ordered ELSE 0 END) AS oct_2025,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2025-11-01' THEN qty_ordered ELSE 0 END) AS nov_2025,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2025-12-01' THEN qty_ordered ELSE 0 END) AS dec_2025,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2026-01-01' THEN qty_ordered ELSE 0 END) AS jan_2026,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2026-02-01' THEN qty_ordered ELSE 0 END) AS feb_2026,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2026-03-01' THEN qty_ordered ELSE 0 END) AS mar_2026,
+  SUM(qty_ordered) AS total_l6m,
+  ROUND(SUM(qty_ordered) / 6, 2) AS avg_monthly
+FROM \`retail-intelligence-489905.sales.transactions\`
+WHERE barcode IN (${barcodes})
+  AND order_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+GROUP BY barcode
+ORDER BY avg_monthly DESC;`;
+  navigator.clipboard.writeText(query).then(() => {
+    const btn = document.getElementById('btn-copy-formula');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = 'Copy BQ Query', 2000);
+  });
+});
+
+// ==================== SAMPLE TEMPLATE DOWNLOAD ====================
+document.getElementById('download-sample').addEventListener('click', () => {
+  const csv = [
+    ['barcode','product_name','unit_cost_sgd'],
+    ['7040355305416','Stokke Tripp Trapp Natural','189.00'],
+    ['7040355305423','Stokke Tripp Trapp White','189.00'],
+    ['7040355305430','Stokke Tripp Trapp Black','189.00'],
+    ['7040355309889','Stokke Tripp Trapp Storm Grey','189.00'],
+    ['7040355316450','Stokke Tripp Trapp Hazy Grey','189.00'],
+    ['7040355316474','Stokke Steps Chair White/Natural','439.00'],
+    ['5015827031989','Stokke Clikk High Chair Sunny Coral','299.00'],
+    ['5015827031996','Stokke Clikk High Chair Teal','299.00'],
+    ['5015827032009','Stokke Clikk High Chair Timeless Grey','299.00'],
+  ].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'procurement_template.csv';
+  a.click(); URL.revokeObjectURL(url);
+});
+
+// Update badge based on mode
+window.addEventListener('DOMContentLoaded', () => {
+  const badge = document.getElementById('bq-badge');
+  if (DEMO_MODE) {
+    badge.innerHTML = '<div class="bq-dot" style="background:var(--warn);box-shadow:0 0 8px var(--warn)"></div> Demo mode · set API_URL for live data';
+    badge.style.borderColor = 'rgba(255,140,71,0.3)';
+  }
+});
+
+// ==================== DEMO AUTO-LOAD ====================
+// Optionally load demo without file upload
+(function initDemo() {
+  // Just enable the sample download link
+})();
+</script>
+</body>
+</html>

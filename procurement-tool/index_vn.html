@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Order Builder — Vietnam</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface2: #f0f3f8;
+    --surface3: #e4e9f2;
+    --border: rgba(30,60,120,0.08);
+    --border2: rgba(30,60,120,0.18);
+    --accent: #1e5ef5;
+    --accent-dim: rgba(30,94,245,0.07);
+    --accent2: #0ea5e9;
+    --accent3: #f59e0b;
+    --danger: #ef4444;
+    --danger-dim: rgba(239,68,68,0.08);
+    --success: #10b981;
+    --warn: #f59e0b;
+    --text: #0f1729;
+    --text2: #4a5578;
+    --muted: #94a3b8;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Plus Jakarta Sans', sans-serif;
+    --radius: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+  /* ── STICKY HEADER ── */
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    height: 60px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 200;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo-icon svg { width: 16px; height: 16px; }
+  .logo-name { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--text); }
+  .logo-sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; margin-top: 1px; }
+
+  .bq-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .bq-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+    animation: pulse 2.5s ease infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── MAIN CONTAINER ── */
+  .container {
+    max-width: 1340px;
+    margin: 0 auto;
+    padding: 28px 32px 80px;
+  }
+
+  /* ── PAGE TITLE ── */
+  .page-title-bar {
+    margin-bottom: 24px;
+  }
+  .page-eyebrow {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  h1 span { color: var(--accent); }
+  .page-subtitle {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ── STEP LAYOUT ── */
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 1024px) { .steps { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 768px) { .steps { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: 0 1px 4px rgba(30,60,120,0.06);
+    transition: all 0.2s;
+  }
+  .card:hover {
+    border-color: rgba(30,94,245,0.2);
+    box-shadow: 0 4px 16px rgba(30,94,245,0.08);
+  }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.14em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+  .card h2 {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: 0.01em;
+    color: var(--text);
+  }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: 8px;
+    padding: 28px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    background: var(--surface2);
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 22px; margin-bottom: 8px; display: block; }
+  .upload-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .upload-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 12px; }
+  .upload-status {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: inline-block;
+    background: var(--surface3);
+    color: var(--muted);
+    border: 1px solid var(--border2);
+  }
+  .upload-status.loaded {
+    background: rgba(16,185,129,0.08);
+    color: var(--success);
+    border-color: rgba(16,185,129,0.25);
+  }
+
+  /* ── COLUMN MAP ── */
+  .col-map { margin-top: 16px; display: none; }
+  .col-map.visible { display: block; }
+  .col-map-title {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 10px;
+  }
+  .col-map-row {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .col-map-label { font-family: var(--mono); font-size: 10px; color: var(--text2); font-weight: 500; }
+
+  select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 7px 28px 7px 12px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    width: 100%;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  select:focus { border-color: var(--accent); }
+
+  /* ── PARAMS ── */
+  .params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .param-group { display: flex; flex-direction: column; gap: 6px; }
+  label { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; display: block; }
+  input[type="number"], input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--accent); }
+  .param-note { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+  .mtc-hint {
+    background: var(--surface2);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 12px;
+    line-height: 1.7;
+  }
+  .mtc-hint strong { color: var(--accent); font-weight: 500; }
+
+  .btn-generate {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 13px 24px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 12px;
+  }
+  .btn-generate:hover { background: #1a4fd8; }
+  .btn-generate:disabled { background: var(--surface3); color: var(--muted); cursor: not-allowed; }
+
+  .progress-bar { height: 4px; background: var(--surface3); border-radius: 2px; margin: 12px 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; width: 0%; transition: width 0.4s ease; }
+  .progress-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; }
+
+  #results-section { display: none; }
+  #results-section.visible { display: block; }
+
+  .results-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; margin-top: 8px; gap: 16px; flex-wrap: wrap; }
+  .results-eyebrow { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px; }
+  .results-title { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+  .results-actions { display: flex; gap: 8px; padding-top: 4px; }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; box-shadow: 0 1px 4px rgba(30,60,120,0.06); transition: all 0.2s; }
+  .kpi:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(30,94,245,0.1); transform: translateY(-1px); }
+  .kpi-label { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }
+  .kpi-value { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: var(--text); }
+  .kpi-value.accent { color: var(--accent); }
+  .kpi-value.ok { color: var(--success); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-value.danger { color: var(--danger); }
+  .kpi-sub { font-family: var(--mono); font-size: 10px; color: var(--text2); margin-top: 6px; }
+
+  .budget-bar-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 24px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(30,60,120,0.06); }
+  .budget-bar-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .budget-track { height: 6px; background: var(--surface3); border-radius: 4px; overflow: hidden; }
+  .budget-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+  .budget-fill.under { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .budget-fill.over { background: linear-gradient(90deg, var(--warn), var(--danger)); }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 28px; box-shadow: 0 1px 4px rgba(30,60,120,0.06); }
+  .table-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); gap: 12px; flex-wrap: wrap; }
+  .table-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-btn { font-family: var(--mono); font-size: 10px; padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border2); background: transparent; color: var(--muted); cursor: pointer; transition: all 0.15s; letter-spacing: 0.04em; }
+  .filter-btn.active, .filter-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .search-input { padding: 6px 12px; font-size: 11px; width: 200px; background: var(--surface2); border: 1px solid var(--border2); color: var(--text); border-radius: 6px; font-family: var(--mono); outline: none; transition: border-color 0.2s; }
+  .search-input:focus { border-color: var(--accent); }
+  .table-count { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+  .tbl-scroll { overflow-x: auto; max-height: 560px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { position: sticky; top: 0; z-index: 10; }
+  thead tr { background: var(--surface); }
+  th { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.12em; padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; transition: color 0.15s; }
+  th:hover { color: var(--text2); }
+  th.sort-asc::after { content: ' ↑'; color: var(--accent); }
+  th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--accent-dim); }
+  td { font-family: var(--mono); font-size: 12px; padding: 12px 16px; white-space: nowrap; }
+  td.product-name { font-family: var(--sans); font-size: 12px; font-weight: 500; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  td.numeric { text-align: right; color: var(--text2); }
+  td.numeric.highlight { color: var(--text); font-weight: 500; }
+  td.cost { color: var(--accent2); font-weight: 500; }
+  td.order-qty { color: var(--accent); font-weight: 700; background: var(--accent-dim); border-left: 2px solid rgba(30,94,245,0.3); }
+  td.order-value { color: var(--success); font-weight: 700; background: rgba(16,185,129,0.06); border-right: 2px solid rgba(16,185,129,0.25); }
+  td.oos-date { font-family: var(--mono); font-size: 11px; white-space: nowrap; }
+
+  .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .badge.stockout { background: var(--danger-dim); color: var(--danger); }
+  .badge.low { background: rgba(245,158,11,0.1); color: var(--warn); }
+  .badge.ok { background: rgba(16,185,129,0.1); color: var(--success); }
+  .badge.over { background: var(--surface3); color: var(--muted); }
+  .badge.no-sales { background: var(--surface3); color: var(--muted); }
+
+  .spark { display: inline-flex; align-items: flex-end; gap: 2px; height: 20px; vertical-align: middle; }
+  .spark-bar { width: 5px; border-radius: 1px; background: var(--accent2); opacity: 0.35; min-height: 2px; }
+  .spark-bar:last-child { opacity: 0.85; background: var(--accent); }
+
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty-icon { font-size: 28px; margin-bottom: 10px; }
+  .empty-text { font-family: var(--mono); font-size: 12px; }
+
+  .tooltip-wrap { position: relative; display: inline-block; }
+  .tooltip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--text); border-radius: 6px; padding: 8px 12px; font-family: var(--mono); font-size: 11px; color: #fff; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100; box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+  .tooltip-wrap:hover .tooltip { opacity: 1; }
+
+  th.order-col-qty { background: var(--accent-dim); border-left: 2px solid rgba(30,94,245,0.25); color: var(--accent) !important; }
+  th.order-col-val { background: rgba(16,185,129,0.06); border-right: 2px solid rgba(16,185,129,0.2); color: var(--success) !important; }
+  th.has-tooltip { cursor: help; }
+  .th-tooltip { display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--text); border-radius: 8px; padding: 10px 14px; font-family: var(--mono); font-size: 11px; color: #fff; white-space: nowrap; z-index: 200; box-shadow: 0 6px 20px rgba(0,0,0,0.15); line-height: 1.8; font-weight: 400; text-transform: none; letter-spacing: 0; pointer-events: none; }
+  th.has-tooltip:hover .th-tooltip { display: block; }
+  td.excluded-month { color: var(--muted) !important; opacity: 0.5; font-style: italic; }
+
+  .sample-link { font-family: var(--mono); font-size: 10px; color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; opacity: 0.7; transition: opacity 0.2s; cursor: pointer; }
+  .sample-link:hover { opacity: 1; }
+
+  @media (max-width: 768px) { .container { padding: 16px 16px 60px; } }
+</style>
+</head>
+<body>
+
+<!-- STICKY HEADER -->
+<header class="site-header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M2 4h12v9a1 1 0 01-1 1H3a1 1 0 01-1-1V4z" stroke="white" stroke-width="1.5"/><path d="M1 2h14v2H1z" fill="white"/><path d="M6 7h4" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+    <div>
+      <div class="logo-name">Procurement Builder</div>
+      <div class="logo-sub">Motherswork · Vietnam</div>
+    </div>
+  </div>
+  <div class="bq-badge" id="bq-badge">
+    <div class="bq-dot"></div>
+    <span>BigQuery · live</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- PAGE TITLE -->
+  <div class="page-title-bar">
+    <div class="page-eyebrow">Buying Tools</div>
+    <h1>Purchase Order <span>Builder</span></h1>
+    <div class="page-subtitle">Upload brand list → set budget → generate replenishment plan</div>
+  </div>
+
+  <!-- STEP CARDS -->
+  <div class="steps">
+
+    <!-- STEP 1: UPLOAD -->
+    <div class="card">
+      <div class="step-num">STEP 01</div>
+      <h2>Upload Brand Price List</h2>
+
+      <div class="upload-zone" id="drop-zone">
+        <input type="file" id="csv-file" accept=".xlsx,.csv">
+        <span class="upload-icon">⬆</span>
+        <div class="upload-title">Drop Excel (.xlsx) or CSV</div>
+        <div class="upload-hint">Required columns: barcode, product name, unit cost</div>
+        <div class="upload-status" id="upload-status">No file loaded</div>
+      </div>
+
+      <a class="sample-link" id="download-sample">↓ download Excel template (.xlsx)</a>
+
+      <!-- COLUMN MAPPING -->
+      <div class="col-map" id="col-map">
+        <div class="col-map-title">Map your columns →</div>
+        <div class="col-map-row">
+          <span class="col-map-label">Barcode</span>
+          <select id="map-barcode"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Product Name</span>
+          <select id="map-name"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Unit Cost</span>
+          <select id="map-cost"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 02: ODOO INVENTORY (middle) -->
+    <div class="card">
+      <div class="step-num">STEP 02 <span style="font-family:var(--sans);font-size:9px;background:rgba(16,185,129,0.12);color:var(--success);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:2px 8px;letter-spacing:0.04em;margin-left:6px;">OPTIONAL</span></div>
+      <h2>Upload Odoo Inventory (SOH)</h2>
+      <div class="upload-zone" id="drop-zone-soh">
+        <input type="file" id="soh-file" accept=".csv">
+        <span class="upload-icon">⬆</span>
+        <div class="upload-title">Drop Odoo inventory CSV</div>
+        <div class="upload-hint">Barcode · Product/Brand · Product · Warehouse · Available Quantity · Product/Sales Price</div>
+        <div class="upload-status" id="soh-upload-status">No file — will use last uploaded SOH</div>
+      </div>
+      <div id="soh-last-upload-banner" style="display:none; margin-top:10px; padding:8px 12px; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:8px; font-family:var(--mono); font-size:10px; color:var(--success);">
+        ✓ Using last uploaded SOH snapshot — <span id="soh-last-upload-date" style="color:var(--text2);">checking...</span>
+      </div>
+      <div class="mtc-hint" style="margin-top:12px;">
+        <strong>Recommended:</strong> Export the <em>full company inventory</em> once daily and upload here. SOH is summed across all warehouses per barcode.<br><br>
+        <strong>Optional each session</strong> — if you skip this step, the tool automatically uses the most recent snapshot already in BigQuery. Only re-upload when you want fresher stock numbers.<br><br>
+        Export path: Odoo → Inventory → Reporting → Locations → Template: <strong>"Dashboard - Procurement"</strong>
+      </div>
+      <div id="soh-col-map" style="display:none; margin-top:16px;">
+        <div class="col-map-title">Map your columns →</div>
+        <div class="col-map-row">
+          <span class="col-map-label">Barcode</span>
+          <select id="soh-map-barcode"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Brand</span>
+          <select id="soh-map-brand"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Product</span>
+          <select id="soh-map-product"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Warehouse</span>
+          <select id="soh-map-warehouse"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">Avail. Qty</span>
+          <select id="soh-map-qty"></select>
+        </div>
+        <div class="col-map-row">
+          <span class="col-map-label">RRP</span>
+          <select id="soh-map-price"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 03: PARAMS (right) -->
+    <div class="card">
+      <div class="step-num">STEP 03</div>
+      <h2>Order Parameters</h2>
+
+      <div class="params-grid">
+        <div class="param-group">
+          <label>PO Budget</label>
+          <input type="number" id="budget" placeholder="e.g. 50000" min="0" step="1000">
+          <span class="param-note">Leave blank = no cap</span>
+        </div>
+        <div class="param-group">
+          <label>Lead Time (weeks)</label>
+          <input type="number" id="lead-time" value="8" min="1" max="52" step="1">
+          <span class="param-note">Default: 8 weeks</span>
+        </div>
+        <div class="param-group">
+          <label>Target SOH (WTC)</label>
+          <input type="number" id="target-mtc" value="4" min="1" max="52" step="1">
+          <span class="param-note">Target weeks to cover</span>
+        </div>
+        <div class="param-group">
+          <label>Brand Filter</label>
+          <input type="text" id="brand-filter" placeholder="e.g. Stokke">
+          <span class="param-note">Optional</span>
+        </div>
+        <div class="param-group">
+          <label>Price List Currency</label>
+          <input type="text" id="price-currency" placeholder="e.g. EUR" maxlength="5" style="text-transform:uppercase;">
+          <span class="param-note">Currency of unit costs above</span>
+        </div>
+        <div class="param-group">
+          <label>FX Rate → Local Currency</label>
+          <input type="number" id="fx-rate" placeholder="e.g. 1.46" min="0" step="0.0001">
+          <span class="param-note">1 [price currency] = ? local currency · leave blank = no conversion</span>
+        </div>
+      </div>
+
+      <div class="mtc-hint">
+        <strong>Order formula:</strong> (target WTC + lead time weeks) × avg weekly sales − current SOH<br>
+        <strong>Risk:</strong> &lt;2 weeks = Low Stock · &gt;4 weeks = Overstock · * = partial week excluded from avg
+      </div>
+
+      <div id="progress-wrap" style="display:none; margin-top:16px;">
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+        <div class="progress-label" id="progress-label">Querying BigQuery...</div>
+      </div>
+
+      <button class="btn-generate" id="btn-generate" disabled>
+        Generate Order Plan →
+      </button>
+    </div>
+
+  </div><!-- end steps -->
+
+  <!-- RESULTS -->
+  <div id="results-section">
+
+    <div class="results-header">
+      <div>
+        <div class="results-eyebrow">Generated Plan</div>
+        <div class="results-title">Order Plan</div>
+      </div>
+      <div class="results-actions">
+        <button class="btn-secondary" id="btn-export-csv">↓ Export CSV</button>
+        <button class="btn-secondary" id="btn-copy-formula">Copy BQ Query</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpi-strip" id="kpi-strip"></div>
+
+    <!-- BUDGET BAR -->
+    <div class="budget-bar-wrap" id="budget-bar-wrap" style="display:none">
+      <div class="budget-bar-header">
+        <span style="color:var(--muted)">PO Value vs Budget</span>
+        <span id="budget-bar-label" style="color:var(--accent); font-weight:500;"></span>
+      </div>
+      <div class="budget-track">
+        <div class="budget-fill" id="budget-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="table-filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="stockout">Stockout</button>
+          <button class="filter-btn" data-filter="low">Low Stock</button>
+          <button class="filter-btn" data-filter="ok">Healthy</button>
+          <button class="filter-btn" data-filter="over">Overstock</button>
+          <button class="filter-btn" data-filter="order">Has Order</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" class="search-input" id="search-input" placeholder="Search SKU...">
+          <span class="table-count" id="table-count"></span>
+        </div>
+      </div>
+      <div class="tbl-scroll">
+        <table id="results-table">
+          <thead id="results-thead"></thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- end results -->
+
+</div><!-- container -->
+
+<script>
+// ==================== DATA ====================
+let uploadedRows = [];
+let resultsData = [];
+let sortCol = null, sortDir = 1;
+let activeFilter = 'all';
+let searchTerm = '';
+
+const MONTHS = ['Oct 2025','Nov 2025','Dec 2025','Jan 2026','Feb 2026','Mar 2026'];
+const SHORT_MONTHS = ['Oct','Nov','Dec','Jan','Feb','Mar'];
+
+// ==================== DEMO SALES DATA (BigQuery simulation) ====================
+// Simulates what BigQuery would return — L6M qty sold per barcode
+const DEMO_BQ_SALES = {
+  // Stokke Tripp Trapp
+  '7040355305416': [12,15,8,10,9,11],
+  '7040355305423': [8,10,6,7,8,9],
+  '7040355305430': [5,6,4,3,5,6],
+  '7040355305447': [22,28,18,20,19,24],
+  '7040355309889': [3,4,2,2,3,4],
+  '7040355309896': [14,16,12,15,13,17],
+  '7040355316450': [7,8,5,6,7,8],
+  '7040355316467': [4,5,3,4,4,5],
+  '7040355316474': [18,22,14,16,15,20],
+  '7040355316481': [2,3,1,2,2,3],
+  '7040355316498': [9,11,7,8,9,10],
+  '7040355316504': [6,7,5,5,6,7],
+  '5015827031989': [11,13,9,10,11,12],
+  '5015827031996': [7,9,6,7,7,8],
+  '5015827032009': [4,5,3,4,4,5],
+  '5015827032016': [15,18,12,14,14,16],
+  '5015827034706': [8,10,7,8,8,9],
+  '5015827034713': [3,4,2,3,3,4],
+  // Bugaboo
+  '8717447112113': [6,7,4,5,5,7],
+  '8717447112120': [4,5,3,4,4,5],
+  '8717447112137': [9,11,7,8,9,10],
+  '8717447112144': [2,3,1,2,2,3],
+  '8717447187516': [14,16,10,12,12,15],
+  '8717447187523': [5,6,4,5,5,6],
+  '8717447187530': [7,8,5,6,7,8],
+  // Joolz
+  '8715839072037': [3,4,2,3,3,4],
+  '8715839072044': [8,10,6,7,8,9],
+  '8715839072051': [5,6,4,5,5,6],
+  '8715839072068': [1,2,1,1,1,2],
+  // UPPAbaby
+  '0810259000001': [9,11,7,8,9,10],
+  '0810259000018': [6,7,5,6,6,7],
+  '0810259000025': [4,5,3,4,4,5],
+  '0810259000032': [12,14,9,11,11,13],
+};
+
+// ==================== API CONFIG ====================
+const API_URL = 'https://retail-intelligence-api-kgt3f3f3uq-as.a.run.app';
+const PROCUREMENT_API = 'https://procurement-api-kgt3f3f3uq-as.a.run.app';
+const API_WEEKLY_SALES_PATH = '/vn/procurement/weekly-sales';
+const API_SOH_PATH = '/vn/soh';
+const API_SOH_LATEST_PATH = '/vn/soh/latest';
+const API_SALES_PATH = '/vn/sales';
+const DEMO_MODE = false;
+
+// Week labels — populated dynamically from API response
+let WEEKS = [];       // full labels e.g. "03 Feb" or "31 Mar*"
+let SHORT_WEEKS = []; // same as WEEKS for procurement
+
+async function queryBigQuery(barcodes, sohRows) {
+  if (DEMO_MODE) {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        const result = {};
+        barcodes.forEach(bc => {
+          const key = String(bc).trim();
+          const weekly = Array(9).fill(0).map(() => Math.max(0, Math.floor(Math.random()*8)));
+          result[key] = { weekly, soh: Math.round(weekly.slice(0,8).reduce((a,b)=>a+b,0)/8 * (0.5 + Math.random()*2)), adj_avg: null, excluded: weekly.map((_,i)=>i===8) };
+        });
+        resolve(result);
+      }, 1200);
+    });
+  }
+
+  // 1. Upload SOH via procurement API if provided
+  if (sohRows && sohRows.length > 0) {
+    try {
+      await fetch(`${PROCUREMENT_API}${API_SOH_PATH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: sohRows })
+      });
+    } catch(e) { console.warn('SOH upload failed:', e); }
+  }
+
+  // 2. Fetch weekly sales from retail-intelligence API
+  const response = await fetch(`${API_URL}${API_WEEKLY_SALES_PATH}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'omit',
+    body: JSON.stringify({ barcodes: barcodes.map(b => String(b).trim()) })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `API error ${response.status}`);
+  }
+  const json = await response.json();
+
+  // Build week labels from response
+  const weekStarts = json.week_starts || [];
+  const currentWeekStart = json.current_week_start;
+  WEEKS = weekStarts.map(ws => {
+    const d = new Date(ws + 'T00:00:00');
+    const label = d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
+    return ws === currentWeekStart ? label + '*' : label;
+  });
+  SHORT_WEEKS = [...WEEKS];
+
+  // Remap to { barcode: { weekly, soh, adj_avg, excluded } }
+  const result = {};
+
+  // First get SOH from procurement API
+  let sohFromApi = {};
+  let lastSaleDateFromApi = {};
+  try {
+    const sohResp = await fetch(`${PROCUREMENT_API}${API_SALES_PATH}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ barcodes: barcodes.map(b => String(b).trim()) })
+    });
+    if (sohResp.ok) {
+      const sohJson = await sohResp.json();
+      sohJson.data?.forEach(item => {
+        sohFromApi[item.barcode] = item.soh;
+        lastSaleDateFromApi[item.barcode] = item.last_sale_date || null;
+      });
+    }
+  } catch(e) { console.warn('SOH fetch failed:', e); }
+
+  const MARCH_1_2026 = '2026-03-01';
+
+  json.data.forEach(item => {
+    const soh = sohFromApi[item.barcode] ?? null;
+    const weekly = item.weeks.map(w => w.qty);
+
+    // Base exclusion: partial (current) week
+    const excluded = item.weeks.map(w => !w.is_complete);
+
+    // Cutoff exclusion: exclude any week before March 1 2026 (pre-Odoo data)
+    item.weeks.forEach((w, i) => {
+      if (w.week_start < MARCH_1_2026) excluded[i] = true;
+    });
+
+    // OOS exclusion: if SOH=0, exclude the last week that had sales
+    // (stock was depleting that week — understates real demand)
+    let lastSaleWeekIdx = null;
+    for (let i = item.weeks.length - 1; i >= 0; i--) {
+      if (item.weeks[i].qty > 0 && item.weeks[i].is_complete && !excluded[i]) {
+        lastSaleWeekIdx = i;
+        break;
+      }
+    }
+    if (soh === 0 && lastSaleWeekIdx !== null) {
+      excluded[lastSaleWeekIdx] = true;
+    }
+
+    // Recalculate adj_avg from non-excluded weeks only (ignore backend value)
+    const nonExcludedQtys = weekly.filter((_, i) => !excluded[i]);
+    const adj_avg = nonExcludedQtys.length > 0
+      ? Math.round((nonExcludedQtys.reduce((a, b) => a + b, 0) / nonExcludedQtys.length) * 100) / 100
+      : 0;
+
+    const exclusion_reasons = item.weeks.map((w, i) => {
+      if (w.week_start < MARCH_1_2026) return 'Before Odoo go-live (1 Mar 2026) — excluded';
+      if (!w.is_complete) return 'Partial week — excluded from avg';
+      if (excluded[i]) return 'OOS week — excluded from avg (SOH=0)';
+      return null;
+    });
+
+    // Derive last_sale_date from weekly data — last week with qty > 0
+    let lastSaleDate = lastSaleDateFromApi[item.barcode] ?? null;
+    for (let i = item.weeks.length - 1; i >= 0; i--) {
+      if (item.weeks[i].qty > 0) {
+        lastSaleDate = item.weeks[i].week_start;
+        break;
+      }
+    }
+
+    result[item.barcode] = {
+      weekly,
+      excluded,
+      exclusion_reasons,
+      soh,
+      adj_avg,
+      active_months: item.weeks.filter(w => w.qty > 0 && w.is_complete).length,
+      last_sale_date: lastSaleDate,
+    };
+  });
+  return { salesData: result, sohFromApi };
+}
+
+// ==================== BARCODE NORMALISER ====================
+function normaliseBarcode(raw) {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  // Handle scientific notation e.g. 7.04036E+12 → 7040360000000
+  if (/^[\d.]+[eE][+\-]?\d+$/.test(s)) {
+    return String(Math.round(parseFloat(s)));
+  }
+  return s;
+}
+let sohUploadedRows = [];
+
+const sohDropZone = document.getElementById('drop-zone-soh');
+const sohFileInput = document.getElementById('soh-file');
+const sohUploadStatus = document.getElementById('soh-upload-status');
+const sohColMap = document.getElementById('soh-col-map');
+
+sohDropZone.addEventListener('dragover', e => { e.preventDefault(); sohDropZone.classList.add('drag-over'); });
+sohDropZone.addEventListener('dragleave', () => sohDropZone.classList.remove('drag-over'));
+sohDropZone.addEventListener('drop', e => {
+  e.preventDefault(); sohDropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) parseSOHCSV(f);
+});
+sohFileInput.addEventListener('change', e => { if (e.target.files[0]) parseSOHCSV(e.target.files[0]); });
+
+function parseSOHCSV(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    dynamicTyping: false,  // Keep barcodes as strings
+    complete: res => {
+      sohUploadedRows = res.data;
+      const cols = res.meta.fields || [];
+      populateSOHColumnMap(cols);
+      sohUploadStatus.textContent = `✓ ${sohUploadedRows.length} rows loaded — will replace last snapshot on Generate`;
+      sohUploadStatus.className = 'upload-status loaded';
+      sohColMap.style.display = 'block';
+    }
+  });
+}
+
+function populateSOHColumnMap(cols) {
+  ['soh-map-barcode','soh-map-brand','soh-map-product','soh-map-warehouse','soh-map-qty','soh-map-price'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">-- select --</option>';
+    cols.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+  });
+  const lower = cols.map(c => c.toLowerCase());
+  const detect = aliases => { for (const a of aliases) { const i = lower.findIndex(c => c.includes(a)); if (i >= 0) return cols[i]; } return ''; };
+  document.getElementById('soh-map-barcode').value   = detect(['barcode','ean','gtin']);
+  document.getElementById('soh-map-brand').value     = detect(['brand']);
+  document.getElementById('soh-map-product').value   = detect(['product','name','description']);
+  document.getElementById('soh-map-warehouse').value = detect(['warehouse']);
+  document.getElementById('soh-map-qty').value       = detect(['available_quantity','available quantity','available','qty','quantity','stock']);
+  document.getElementById('soh-map-price').value     = detect(['sales_price','sales price','rrp','price']);
+}
+
+function buildSOHRows() {
+  if (!sohUploadedRows.length) return [];
+  const bc  = document.getElementById('soh-map-barcode').value;
+  const br  = document.getElementById('soh-map-brand').value;
+  const pr  = document.getElementById('soh-map-product').value;
+  const wh  = document.getElementById('soh-map-warehouse').value;
+  const qty = document.getElementById('soh-map-qty').value;
+  const rp  = document.getElementById('soh-map-price').value;
+  if (!bc || !qty) return [];
+  return sohUploadedRows
+    .filter(r => r[bc] && r[qty] !== undefined && r[qty] !== '')
+    .map(r => ({
+      Barcode:             normaliseBarcode(r[bc]),
+      Product_Brand:       br ? (r[br] || '') : '',
+      Product:             pr ? (r[pr] || '') : '',
+      Warehouse:           wh ? (r[wh] || '') : '',
+      Available_Quantity:  parseInt(String(r[qty]).replace(/[^0-9-]/g,'')) || 0,
+      Product_Sales_Price: rp ? (parseFloat(String(r[rp]).replace(/[^0-9.]/g,'')) || null) : null,
+    }));
+}
+
+// ==================== FILE UPLOAD ====================
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('csv-file');
+const uploadStatus = document.getElementById('upload-status');
+const colMap = document.getElementById('col-map');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) parseCSV(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) parseCSV(e.target.files[0]); });
+
+function parseCSV(file) {
+  const isXlsx = file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls');
+  if (isXlsx) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array', raw: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      // raw:false reads formatted values; but barcodes stored as numbers still need fixing
+      const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' });
+
+      // Fix barcodes stored as numbers — SheetJS may return them in scientific notation
+      // We read the raw numeric value and convert to integer string
+      const rawRows = XLSX.utils.sheet_to_json(ws, { raw: true, defval: '' });
+      const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
+      const bcCol = cols.find(c => c.toLowerCase().includes('barcode') || c.toLowerCase().includes('ean') || c.toLowerCase().includes('gtin'));
+
+      if (bcCol) {
+        rows.forEach((row, i) => {
+          const rawVal = rawRows[i]?.[bcCol];
+          if (typeof rawVal === 'number') {
+            // Convert raw number to integer string — preserves all digits
+            row[bcCol] = String(Math.round(rawVal));
+          } else {
+            row[bcCol] = normaliseBarcode(String(row[bcCol] || ''));
+          }
+        });
+      }
+
+      uploadedRows = rows;
+      populateColumnMap(cols);
+
+      // Warn if any barcodes still look truncated (end in many zeros)
+      if (bcCol) {
+        const truncCount = uploadedRows.filter(r => /0{4,}$/.test(String(r[bcCol] || ''))).length;
+        if (truncCount > 0) {
+          uploadStatus.textContent = `⚠ ${truncCount} barcodes may be truncated (ending in zeros). In Excel: select barcode column → Format Cells → Text → re-enter values.`;
+          uploadStatus.className = 'upload-status';
+          uploadStatus.style.background = 'rgba(255,140,71,0.15)';
+          uploadStatus.style.color = '#ff8c47';
+          uploadStatus.style.display = 'inline-block';
+        } else {
+          uploadStatus.textContent = `✓ ${uploadedRows.length} products loaded`;
+          uploadStatus.className = 'upload-status loaded';
+        }
+      } else {
+        uploadStatus.textContent = `✓ ${uploadedRows.length} products loaded`;
+        uploadStatus.className = 'upload-status loaded';
+      }
+
+      colMap.classList.add('visible');
+      checkReady();
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      dynamicTyping: false,
+      complete: res => {
+        uploadedRows = res.data;
+        const cols = res.meta.fields || [];
+        populateColumnMap(cols);
+
+        // Warn if scientific notation detected
+        const bcCol = cols.find(c => c.toLowerCase().includes('barcode') || c.toLowerCase().includes('ean'));
+        if (bcCol) {
+          const sciCount = uploadedRows.filter(r => /^[\d.]+[eE][+\-]?\d+$/i.test(String(r[bcCol] || '').trim())).length;
+          if (sciCount > 0) {
+            uploadStatus.textContent = `⚠ ${sciCount} barcodes in scientific notation — use the Excel template instead to avoid this.`;
+            uploadStatus.className = 'upload-status';
+            uploadStatus.style.background = 'rgba(255,140,71,0.15)';
+            uploadStatus.style.color = '#ff8c47';
+            uploadStatus.style.display = 'inline-block';
+            colMap.classList.add('visible');
+            checkReady();
+            return;
+          }
+        }
+
+        uploadStatus.textContent = `✓ ${uploadedRows.length} products loaded`;
+        uploadStatus.className = 'upload-status loaded';
+        colMap.classList.add('visible');
+        checkReady();
+      }
+    });
+  }
+}
+
+function populateColumnMap(cols) {
+  ['map-barcode','map-name','map-cost'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '<option value="">-- select --</option>';
+    cols.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      sel.appendChild(o);
+    });
+  });
+  const lower = cols.map(c => c.toLowerCase());
+  const detect = (aliases) => {
+    for (const a of aliases) {
+      const idx = lower.findIndex(c => c.includes(a));
+      if (idx >= 0) return cols[idx];
+    }
+    return '';
+  };
+  document.getElementById('map-barcode').value = detect(['barcode','ean','gtin','upc','code']);
+  document.getElementById('map-name').value = detect(['product','name','description','item','sku','title']);
+  document.getElementById('map-cost').value = detect(['cost','price','purchase','unit price','unit_cost','buy','supplier']);
+}
+
+['map-barcode','map-name','map-cost','budget','lead-time','target-mtc'].forEach(id => {
+  document.getElementById(id)?.addEventListener('change', checkReady);
+  document.getElementById(id)?.addEventListener('input', checkReady);
+});
+
+function checkReady() {
+  const hasFile = uploadedRows.length > 0;
+  const hasMapping = document.getElementById('map-barcode').value &&
+                     document.getElementById('map-name').value &&
+                     document.getElementById('map-cost').value;
+  document.getElementById('btn-generate').disabled = !(hasFile && hasMapping);
+}
+
+// ==================== GENERATE ====================
+document.getElementById('btn-generate').addEventListener('click', async () => {
+  const barcodeCol   = document.getElementById('map-barcode').value;
+  const nameCol      = document.getElementById('map-name').value;
+  const costCol      = document.getElementById('map-cost').value;
+  const budget       = parseFloat(document.getElementById('budget').value) || Infinity;
+  const leadTime     = parseFloat(document.getElementById('lead-time').value) || 2;
+  const targetMTC    = parseFloat(document.getElementById('target-mtc').value) || 3;
+  const priceCurrency = (document.getElementById('price-currency').value || '').trim().toUpperCase();
+  const fxRate       = parseFloat(document.getElementById('fx-rate').value) || 1;
+  const hasFx        = fxRate !== 1 && priceCurrency;
+
+  const progressWrap  = document.getElementById('progress-wrap');
+  const progressFill  = document.getElementById('progress-fill');
+  const progressLabel = document.getElementById('progress-label');
+  progressWrap.style.display = 'block';
+  document.getElementById('btn-generate').disabled = true;
+
+  const barcodes = uploadedRows.map(r => normaliseBarcode(r[barcodeCol]));
+  const sohRows  = buildSOHRows();
+
+  const steps = [
+    [20, 'Uploading SOH to BigQuery...'],
+    [45, 'Querying L6M sales data...'],
+    [70, 'Calculating adjusted averages...'],
+    [88, 'Applying budget constraints...'],
+    [100, 'Finalising order plan...']
+  ];
+  let stepIdx = 0;
+  const stepInterval = setInterval(() => {
+    if (stepIdx < steps.length - 1) {
+      const [pct, msg] = steps[stepIdx];
+      progressFill.style.width = pct + '%';
+      progressLabel.textContent = msg;
+      stepIdx++;
+    }
+  }, 400);
+
+  let salesData, sohFromApi;
+  try {
+    ({ salesData, sohFromApi } = await queryBigQuery(barcodes, sohRows));
+  } catch(e) {
+    clearInterval(stepInterval);
+    progressLabel.textContent = `Error: ${e.message}`;
+    progressFill.style.background = 'var(--danger)';
+    document.getElementById('btn-generate').disabled = false;
+    return;
+  }
+
+  clearInterval(stepInterval);
+  progressFill.style.width = '100%';
+  progressLabel.textContent = 'Done.';
+  setTimeout(() => { progressWrap.style.display = 'none'; progressFill.style.width = '0%'; }, 600);
+
+  resultsData = uploadedRows.map(row => {
+    const barcode = normaliseBarcode(row[barcodeCol]);
+    const name = row[nameCol] || '';
+    const costRaw = parseFloat(String(row[costCol]).replace(/[^0-9.]/g, '')) || 0;
+    const costSGD = hasFx ? round(costRaw * fxRate, 4) : costRaw;
+    const cost = costSGD; // cost used for all calculations is always in target currency
+
+    // LEFT JOIN: always use procurement template as base, sales/SOH may be null
+    const apiData = salesData[barcode] || {
+      weekly: Array(9).fill(0),
+      excluded: Array(8).fill(false).concat([true]),
+      exclusion_reasons: [],
+      soh: null,
+      adj_avg: 0,
+      active_months: 0,
+      last_sale_date: null
+    };
+    const noSalesMatch = !salesData[barcode];
+
+    const weekly = apiData.weekly || Array(9).fill(0);
+    const excluded = apiData.excluded || weekly.map(() => false);
+    const total = weekly.filter((_,i) => !excluded[i]).reduce((a,b) => a+b, 0);
+    const completeCount = excluded.filter(e => !e).length || 1;
+    const avg = round(total / completeCount, 2);
+    const adj_avg = apiData.adj_avg ?? avg;
+    const active_months = apiData.active_months ?? 0;
+
+    // SOH resolution priority:
+    // 1. apiData.soh — from /sales endpoint (BQ latest snapshot), set when barcode matched weekly data
+    // 2. sohFromApi[barcode] — direct lookup from /sales for barcodes that may not have weekly sales
+    // 3. SOH CSV uploaded this session
+    // 4. Default 0
+    // Always floor at 0 — negative SOH (Odoo data issue) should never inflate order quantities
+    let soh = 0;
+    if (apiData.soh !== null && apiData.soh !== undefined) {
+      soh = Math.max(0, apiData.soh);
+    } else if (sohFromApi[barcode] !== null && sohFromApi[barcode] !== undefined) {
+      soh = Math.max(0, sohFromApi[barcode]);
+    } else if (sohUploadedRows.length > 0) {
+      const sohBcCol = document.getElementById('soh-map-barcode').value;
+      const sohQtyCol = document.getElementById('soh-map-qty').value;
+      const sohMatch = sohUploadedRows.find(r => normaliseBarcode(r[sohBcCol]) === barcode);
+      if (sohMatch && sohQtyCol) {
+        soh = Math.max(0, parseFloat(String(sohMatch[sohQtyCol]).replace(/[^0-9.\-]/g,'')) || 0);
+      }
+    }
+
+    const mtc = adj_avg > 0 ? Math.max(0, soh) / adj_avg : (soh > 0 ? 99 : 0);
+    const rawOrder = Math.max(0, Math.round((targetMTC + leadTime) * adj_avg - Math.max(0, soh)));
+    const orderValue = rawOrder * cost;
+
+    let risk = 'no-sales';
+    if (noSalesMatch && soh === 0) risk = 'no-sales';
+    else if (adj_avg > 0) {
+      if (soh === 0) risk = 'stockout';
+      else if (mtc < 2) risk = 'low';
+      else if (mtc > 4) risk = 'over';
+      else risk = 'ok';
+    }
+
+    return { barcode, name, costRaw, cost, priceCurrency, fxRate: hasFx ? fxRate : null, weekly, excluded, exclusion_reasons: apiData.exclusion_reasons || [], total, avg, adj_avg, active_months, soh, mtc, rawOrder, orderValue, risk, last_sale_date: apiData.last_sale_date, noSalesMatch, ...Object.fromEntries(WEEKS.map((w,i) => [w, weekly[i] ?? 0])) };
+  });
+
+  function round(v, d) { return Math.round(v * 10**d) / 10**d; }
+
+  // Apply budget cap: prioritise stockouts → low → ok, skip over
+  let runningTotal = 0;
+  resultsData.sort((a,b) => {
+    const priority = {stockout:0, low:1, ok:2, over:3, 'no-sales':4};
+    return priority[a.risk] - priority[b.risk] || b.avg - a.avg;
+  });
+  resultsData.forEach(r => {
+    if (budget !== Infinity) {
+      if (runningTotal + r.orderValue <= budget) {
+        runningTotal += r.orderValue;
+      } else {
+        // Scale down qty to fit
+        const remaining = Math.max(0, budget - runningTotal);
+        const fitsQty = r.cost > 0 ? Math.floor(remaining / r.cost) : 0;
+        r.rawOrder = Math.min(r.rawOrder, fitsQty);
+        r.orderValue = r.rawOrder * r.cost;
+        runningTotal += r.orderValue;
+      }
+    }
+  });
+
+  // Re-sort by barcode
+  resultsData.sort((a,b) => a.barcode.localeCompare(b.barcode));
+
+  renderResults(budget);
+  document.getElementById('btn-generate').disabled = false;
+});
+
+// ==================== RENDER RESULTS ====================
+function renderResults(budget) {
+  const section = document.getElementById('results-section');
+  section.classList.add('visible');
+  setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+  renderKPIs(budget);
+  renderBudgetBar(budget);
+  renderTable();
+}
+
+function renderKPIs(budget) {
+  const orderedRows = resultsData.filter(r => r.rawOrder > 0);
+  const total    = orderedRows.reduce((s,r) => s + r.orderValue, 0);
+  const units    = orderedRows.reduce((s,r) => s + r.rawOrder, 0);
+  const stockouts = resultsData.filter(r => r.risk === 'stockout').length;
+  const lowStock  = resultsData.filter(r => r.risk === 'low').length;
+  const hasOrder  = orderedRows.length;
+  const activeSkus = resultsData.filter(r => r.adj_avg > 0);
+  const avgWTC = activeSkus.length > 0
+    ? activeSkus.reduce((s,r) => s + Math.max(0, r.mtc), 0) / activeSkus.length
+    : 0;
+  const pct = budget !== Infinity ? (total/budget*100).toFixed(0) : null;
+
+  document.getElementById('kpi-strip').innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Total PO Value</div>
+      <div class="kpi-value accent">$${total.toLocaleString('en',{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+      ${pct ? `<div class="kpi-sub">${pct}% of budget</div>` : ''}
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Units to Order</div>
+      <div class="kpi-value">${units.toLocaleString()}</div>
+      <div class="kpi-sub">${hasOrder} SKUs with orders</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Stockouts</div>
+      <div class="kpi-value danger">${stockouts}</div>
+      <div class="kpi-sub">zero SOH with sales</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Low Stock</div>
+      <div class="kpi-value warn">${lowStock}</div>
+      <div class="kpi-sub">&lt; 2 weeks cover</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Avg Current WTC</div>
+      <div class="kpi-value">${avgWTC.toFixed(1)}w</div>
+      <div class="kpi-sub">across active SKUs</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Total SKUs</div>
+      <div class="kpi-value">${resultsData.length}</div>
+      <div class="kpi-sub">from uploaded list</div>
+    </div>
+  `;
+}
+
+function renderBudgetBar(budget) {
+  const wrap = document.getElementById('budget-bar-wrap');
+  if (budget === Infinity) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const total = resultsData.reduce((s,r) => s + r.orderValue, 0);
+  const pct = Math.min(100, total/budget*100);
+  const fill = document.getElementById('budget-fill');
+  fill.className = 'budget-fill ' + (pct > 95 ? 'over' : 'under');
+  setTimeout(() => fill.style.width = pct + '%', 50);
+  document.getElementById('budget-bar-label').textContent =
+    `$${total.toLocaleString('en',{maximumFractionDigits:0})} / $${budget.toLocaleString('en',{maximumFractionDigits:0})} (${pct.toFixed(0)}%)`;
+}
+
+function renderTable() {
+  const thead = document.getElementById('results-thead');
+  const tbody = document.getElementById('results-tbody');
+
+  // Get currency info from results
+  const firstRow = resultsData[0];
+  const priceCurr = firstRow?.priceCurrency || '';
+  const fxR = firstRow?.fxRate;
+  const costLabel = priceCurr ? `Unit Cost (${priceCurr})` : 'Unit Cost';
+  const orderValLabel = fxR ? `Order Value (SGD @ ${fxR} FX)` : priceCurr ? `Order Value (${priceCurr})` : 'Order Value';
+
+  const cols = [
+    { key: 'barcode', label: 'Barcode' },
+    { key: 'name', label: 'Product', cls: 'product-name' },
+    { key: 'cost', label: costLabel, cls: 'cost numeric' },
+    ...WEEKS.map((w,i) => ({ key: w, label: w, cls: `numeric${i === WEEKS.length-1 ? ' excluded-month' : ''}` })),
+    { key: 'adj_avg', label: 'Avg/Wk', cls: 'numeric highlight', tooltip: 'Average units sold per week — adjusted for reliability\n\nData starts 1 Mar 2026 (Odoo ERP go-live).\nOlder history is excluded.\n\nWeeks removed from the average:\n① Current week (*) — not complete yet\n② Last selling week if product is now OOS — demand was constrained by low stock\n③ Any week with no Odoo data\n\nResult = best estimate of true weekly demand.' },
+    { key: 'soh', label: 'SOH', cls: 'numeric highlight' },
+    { key: 'mtc', label: 'WTC', cls: 'numeric' },
+    { key: 'oos_date', label: 'OOS Since', cls: 'oos-date', tooltip: 'Date of last recorded sale.\nOnly shown for Stockout products (SOH = 0 with sales history).\nIndicates how long the product has been out of stock.' },
+    { key: 'risk', label: 'Risk ⓘ', cls: 'risk-header', tooltip: 'Stockout: SOH = 0 with sales history\nLow Stock: WTC < 2 weeks\nHealthy: WTC 2–4 weeks\nOverstock: WTC > 4 weeks\nNo Sales: no sales data' },
+    { key: 'trend', label: 'Trend', cls: '' },
+    { key: 'rawOrder', label: 'Order Qty', cls: 'order-qty numeric highlight', hcls: 'order-col-qty' },
+    { key: 'orderValue', label: orderValLabel, cls: 'order-value numeric highlight', hcls: 'order-col-val' },
+  ];
+
+  thead.innerHTML = `<tr>${cols.map(c =>
+    c.tooltip
+      ? `<th data-key="${c.key}" class="${sortCol===c.key ? (sortDir>0?'sort-asc':'sort-desc') : ''} has-tooltip${c.hcls?' '+c.hcls:''}" style="position:relative">${c.label}<div class="th-tooltip">${c.tooltip.replace(/\n/g,'<br>')}</div></th>`
+      : `<th data-key="${c.key}" class="${sortCol===c.key ? (sortDir>0?'sort-asc':'sort-desc') : ''}${c.hcls?' '+c.hcls:''}">${c.label}</th>`
+  ).join('')}</tr>`;
+
+  thead.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const k = th.dataset.key;
+      if (sortCol === k) sortDir *= -1;
+      else { sortCol = k; sortDir = 1; }
+      renderTable();
+    });
+  });
+
+  let data = [...resultsData];
+
+  // Filter
+  if (activeFilter !== 'all') {
+    if (activeFilter === 'order') data = data.filter(r => r.rawOrder > 0);
+    else data = data.filter(r => r.risk === activeFilter);
+  }
+
+  // Search
+  if (searchTerm) {
+    const q = searchTerm.toLowerCase();
+    data = data.filter(r =>
+      r.name.toLowerCase().includes(q) || r.barcode.includes(q)
+    );
+  }
+
+  // Sort
+  if (sortCol) {
+    data.sort((a,b) => {
+      const va = a[sortCol], vb = b[sortCol];
+      if (typeof va === 'number') return (va - vb) * sortDir;
+      return String(va).localeCompare(String(vb)) * sortDir;
+    });
+  }
+
+  document.getElementById('table-count').textContent = `${data.length} SKUs`;
+
+  if (data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${cols.length}">
+      <div class="empty-state">
+        <div class="empty-icon">○</div>
+        <div class="empty-text">No results match this filter.</div>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  const RISK_LABEL = { stockout:'Stockout', low:'Low Stock', ok:'Healthy', over:'Overstock', 'no-sales':'No Sales' };
+
+  tbody.innerHTML = data.map(r => {
+    const weeks = WEEKS.map(w => r[w] || 0);
+    const maxW = Math.max(...weeks, 1);
+    const spark = weeks.map((v,i) =>
+      `<div class="spark-bar${r.excluded[i] ? ' excluded-bar' : ''}" style="height:${Math.max(10, Math.round(v/maxW*20))}px;${r.excluded[i]?'opacity:0.4;':''}" title="${WEEKS[i]}"></div>`
+    ).join('');
+
+    const noMatchStyle = r.noSalesMatch ? 'opacity:0.6;' : '';
+    const noMatchTitle = r.noSalesMatch ? ' title="No sales history found in BQ for this barcode"' : '';
+
+    // OOS Since cell — only meaningful for stockout
+    let oosCell = '<td class="oos-date"><span style="color:var(--muted)">—</span></td>';
+    if (r.risk === 'stockout' && r.last_sale_date) {
+      const oosD = new Date(r.last_sale_date + 'T00:00:00');
+      const oosLabel = oosD.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+      const daysAgo = Math.floor((Date.now() - oosD.getTime()) / 86400000);
+      oosCell = `<td class="oos-date" title="Last sale: ${oosLabel}">
+        <span style="color:var(--danger);font-weight:600;">${oosLabel}</span>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">${daysAgo}d ago</div>
+      </td>`;
+    }
+
+    return `<tr style="${noMatchStyle}">
+      <td>${r.barcode}${r.noSalesMatch ? ' <span style="font-size:9px;color:var(--muted);font-family:var(--mono)">·no BQ match</span>' : ''}</td>
+      <td class="product-name" title="${r.name}">${r.name}</td>
+      <td class="cost numeric">${r.priceCurrency ? r.priceCurrency+' ' : ''}${r.costRaw.toFixed(2)}${r.fxRate ? `<div style="font-size:9px;color:var(--muted);">SGD ${r.cost.toFixed(2)}</div>` : ''}</td>
+      ${weeks.map((v,i) => `<td class="numeric${r.excluded[i] ? ' excluded-month' : ''}" title="${r.excluded[i] ? (r.exclusion_reasons?.[i] || 'Partial week — excluded from avg') : (WEEKS[i]||'')}">${r.noSalesMatch ? '<span style="color:var(--muted)">—</span>' : (v||0)}${r.excluded[i]?'*':''}</td>`).join('')}
+      <td class="numeric highlight">${r.noSalesMatch ? '<span style="color:var(--muted)">—</span>' : r.adj_avg.toFixed(1)}</td>
+      <td class="numeric highlight">${Math.max(0, r.soh ?? 0)}</td>
+      <td class="numeric">${r.adj_avg > 0 ? r.mtc.toFixed(1)+'w' : '—'}</td>
+      ${oosCell}
+      <td><span class="badge ${r.risk}">${RISK_LABEL[r.risk]}</span></td>
+      <td><div class="spark">${spark}</div></td>
+      <td class="order-qty numeric highlight">${r.rawOrder > 0 ? r.rawOrder : '—'}</td>
+      <td class="order-value numeric highlight">${r.rawOrder > 0 ? (r.fxRate ? 'SGD ' : (r.priceCurrency ? r.priceCurrency+' ' : '$'))+(r.orderValue.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2})) : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ==================== FILTERS + SEARCH ====================
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.filter;
+    renderTable();
+  });
+});
+
+document.getElementById('search-input').addEventListener('input', e => {
+  searchTerm = e.target.value;
+  renderTable();
+});
+
+// ==================== EXPORT CSV ====================
+document.getElementById('btn-export-csv').addEventListener('click', () => {
+  const firstRow = resultsData[0];
+  const priceCurr = firstRow?.priceCurrency || '';
+  const fxR = firstRow?.fxRate;
+  const costHeader = priceCurr ? `Unit Cost (${priceCurr})` : 'Unit Cost';
+  const orderValHeader = fxR ? `Order Value (SGD @ FX ${fxR})` : priceCurr ? `Order Value (${priceCurr})` : 'Order Value (SGD)';
+  const fxNote = fxR ? `FX Rate: 1 ${priceCurr} = ${fxR} SGD` : '';
+
+  const headers = ['Barcode','Product Name', costHeader, ...(fxR ? ['Unit Cost (SGD)'] : []), ...WEEKS,'Avg/Wk','SOH','WTC','Risk','Suggested Order Qty', orderValHeader];
+  const rows = resultsData.map(r => [
+    r.barcode, r.name, r.costRaw,
+    ...(fxR ? [r.cost.toFixed(4)] : []),
+    ...WEEKS.map(w => r[w]||0),
+    r.avg.toFixed(1), r.soh ?? '', r.adj_avg>0?r.mtc.toFixed(1):'', r.risk,
+    r.rawOrder || '', r.rawOrder > 0 ? r.orderValue.toFixed(2) : ''
+  ]);
+  const metaRow = fxNote ? [[fxNote], []] : [];
+  const csv = [...metaRow, headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = `PO_Plan_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+});
+
+// ==================== COPY BQ QUERY ====================
+document.getElementById('btn-copy-formula').addEventListener('click', () => {
+  const barcodes = resultsData.map(r => `'${r.barcode}'`).join(',');
+  const query = `-- L6M Sales by Barcode for PO Builder
+SELECT
+  barcode,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2025-10-01' THEN qty_ordered ELSE 0 END) AS oct_2025,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2025-11-01' THEN qty_ordered ELSE 0 END) AS nov_2025,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2025-12-01' THEN qty_ordered ELSE 0 END) AS dec_2025,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2026-01-01' THEN qty_ordered ELSE 0 END) AS jan_2026,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2026-02-01' THEN qty_ordered ELSE 0 END) AS feb_2026,
+  SUM(CASE WHEN DATE_TRUNC(order_date, MONTH) = '2026-03-01' THEN qty_ordered ELSE 0 END) AS mar_2026,
+  SUM(qty_ordered) AS total_l6m,
+  ROUND(SUM(qty_ordered) / 6, 2) AS avg_monthly
+FROM \`retail-intelligence-489905.sales.transactions\`
+WHERE barcode IN (${barcodes})
+  AND order_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 6 MONTH)
+GROUP BY barcode
+ORDER BY avg_monthly DESC;`;
+  navigator.clipboard.writeText(query).then(() => {
+    const btn = document.getElementById('btn-copy-formula');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = 'Copy BQ Query', 2000);
+  });
+});
+
+// ==================== SAMPLE TEMPLATE DOWNLOAD ====================
+document.getElementById('download-sample').addEventListener('click', () => {
+  const rows = [
+    { barcode: '7040355305416', product_name: 'Stokke Tripp Trapp Natural',       unit_cost: 189.00 },
+    { barcode: '7040355305423', product_name: 'Stokke Tripp Trapp White',          unit_cost: 189.00 },
+    { barcode: '7040355305430', product_name: 'Stokke Tripp Trapp Black',          unit_cost: 189.00 },
+    { barcode: '7040355309889', product_name: 'Stokke Tripp Trapp Storm Grey',     unit_cost: 189.00 },
+    { barcode: '7040355316450', product_name: 'Stokke Tripp Trapp Hazy Grey',      unit_cost: 189.00 },
+    { barcode: '7040355316474', product_name: 'Stokke Steps Chair White/Natural',  unit_cost: 439.00 },
+    { barcode: '5015827031989', product_name: 'Stokke Clikk High Chair Sunny Coral', unit_cost: 299.00 },
+    { barcode: '5015827031996', product_name: 'Stokke Clikk High Chair Teal',      unit_cost: 299.00 },
+    { barcode: '5015827032009', product_name: 'Stokke Clikk High Chair Timeless Grey', unit_cost: 299.00 },
+  ];
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+
+  // Format barcode column (col A, rows 2 onwards) as Text to prevent Excel converting to numbers
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for (let row = 1; row <= range.e.r; row++) {
+    const cellAddr = XLSX.utils.encode_cell({ r: row, c: 0 });
+    if (ws[cellAddr]) {
+      ws[cellAddr].t = 's'; // force string type
+      ws[cellAddr].z = '@'; // text format
+    }
+  }
+
+  // Set column widths
+  ws['!cols'] = [{ wch: 18 }, { wch: 45 }, { wch: 16 }];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Price List');
+  XLSX.writeFile(wb, 'procurement_template.xlsx');
+});
+
+// Update badge based on mode
+window.addEventListener('DOMContentLoaded', () => {
+  const badge = document.getElementById('bq-badge');
+  if (DEMO_MODE) {
+    badge.innerHTML = '<div class="bq-dot" style="background:#f59e0b;box-shadow:0 0 8px #f59e0b"></div> Demo mode · set API_URL for live data';
+  }
+
+  // Check for existing SOH snapshot in BigQuery and show banner
+  fetch(`${PROCUREMENT_API}${API_SOH_LATEST_PATH}`, { method: 'GET', credentials: 'omit' })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      const banner = document.getElementById('soh-last-upload-banner');
+      const dateEl = document.getElementById('soh-last-upload-date');
+      if (data && data.uploaded_at) {
+        const d = new Date(data.uploaded_at + 'T00:00:00');
+        const label = d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+        dateEl.textContent = `snapshot from ${label} · ${Number(data.row_count || 0).toLocaleString()} SKUs · ${Number(data.total_rows || data.row_count || 0).toLocaleString()} rows`;
+        banner.style.display = 'block';
+      }
+    })
+    .catch(() => {});
+});
+
+// ==================== DEMO AUTO-LOAD ====================
+// Optionally load demo without file upload
+(function initDemo() {
+  // Just enable the sample download link
+})();
+</script>
+</body>
+</html>
