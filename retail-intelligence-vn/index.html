@@ -1091,13 +1091,46 @@ function renderOverviewBreakdown(channelData, f) {
   if(sub) sub.textContent = f.year_month ? `Month: ${f.year_month}` : 'Select a month to see targets';
 }
 
+async function loadMonthlyRevenue(f) {
+  if (f.sales_team || !f.channel_group) {
+    return api(API_PREFIX + '/revenue/monthly?' + qs({sales_team: f.sales_team, brand: f.brand}));
+  }
+  const channelGroup = f.channel_group;
+  const storesInGroup = Object.keys(STORE_TO_CHANNEL).filter(store => STORE_TO_CHANNEL[store] === channelGroup);
+  const storesData = await Promise.all(
+    storesInGroup.map(store => 
+      api(API_PREFIX + '/revenue/monthly?' + qs({sales_team: store, brand: f.brand})).catch(() => [])
+    )
+  );
+  const monthlyMap = {};
+  storesData.forEach(storeData => {
+    storeData.forEach(d => {
+      if (!d.year_month) return;
+      if (!monthlyMap[d.year_month]) {
+        monthlyMap[d.year_month] = {
+          year_month: d.year_month,
+          total_revenue: 0,
+          total_net_revenue: 0,
+          total_qty: 0,
+          transaction_count: 0
+        };
+      }
+      monthlyMap[d.year_month].total_revenue += d.total_revenue || 0;
+      monthlyMap[d.year_month].total_net_revenue += d.total_net_revenue || 0;
+      monthlyMap[d.year_month].total_qty += d.total_qty || 0;
+      monthlyMap[d.year_month].transaction_count += d.transaction_count || 0;
+    });
+  });
+  return Object.values(monthlyMap).sort((a,b) => a.year_month.localeCompare(b.year_month));
+}
+
 // OVERVIEW
 async function loadOverview() {
   const f=filters();
   try {
     const [ov,monthly,byChannel]=await Promise.all([
       api(API_PREFIX+'/overview?'+qs(f)),
-      api(API_PREFIX+'/revenue/monthly?'+qs({sales_team:f.sales_team,brand:f.brand})),
+      loadMonthlyRevenue(f),
       api(API_PREFIX+'/revenue/by-channel?'+qs({year_month:f.year_month,sales_team:f.sales_team,brand:f.brand})),
     ]);
 
@@ -1107,7 +1140,27 @@ async function loadOverview() {
       ? byChannel.filter(d => STORE_TO_CHANNEL[d.sales_team] === channelGroup)
       : byChannel;
 
-    renderKPIs(ov,f);
+    let displayOv = ov;
+    if (f.channel_group && !f.sales_team) {
+      const totalRev = filteredByChannel.reduce((s, d) => s + (d.total_revenue || 0), 0);
+      const totalCost = filteredByChannel.reduce((s, d) => s + (d.total_cost || 0), 0);
+      const totalQty = filteredByChannel.reduce((s, d) => s + (d.total_qty || 0), 0);
+      const totalTrans = filteredByChannel.reduce((s, d) => s + (d.transaction_count || 0), 0);
+      const marginPct = totalRev > 0 ? ((totalRev - totalCost) / totalRev * 100) : 0;
+      
+      const channels = new Set(filteredByChannel.map(d => STORE_TO_CHANNEL[d.sales_team]).filter(Boolean));
+      
+      displayOv = {
+        total_revenue: totalRev,
+        gross_margin_pct: marginPct,
+        total_qty: totalQty,
+        transaction_count: totalTrans,
+        brand_count: ov.brand_count,
+        channel_count: channels.size
+      };
+    }
+
+    renderKPIs(displayOv,f);
     renderMomTable(monthly);
     window._lastChannelData = filteredByChannel;
     renderOverviewBreakdown(filteredByChannel, f);
@@ -1117,7 +1170,16 @@ async function loadOverview() {
 }
 
 function renderKPIs(d,f) {
-  const totalTarget=f.year_month?getTargetSum(f.year_month,f.sales_team):null;
+  let totalTarget = null;
+  if (f.year_month) {
+    if (f.sales_team) {
+      totalTarget = getTargetSum(f.year_month, f.sales_team);
+    } else if (f.channel_group) {
+      totalTarget = getChannelGroupTarget(f.year_month, f.channel_group);
+    } else {
+      totalTarget = getTargetSum(f.year_month, '');
+    }
+  }
   const att=totalTarget&&d.total_revenue?(d.total_revenue/totalTarget*100).toFixed(1):null;
   const mc=d.gross_margin_pct>40?'var(--accent)':d.gross_margin_pct>25?'var(--accent3)':'var(--danger)';
   document.getElementById('kpiGrid').innerHTML=`
@@ -1155,7 +1217,7 @@ async function loadYTD(f) {
   try {
     // Get the year from selected month, default to current year
     const year = f.year_month ? f.year_month.substring(0,4) : new Date().getFullYear().toString();
-    const data = await api(API_PREFIX+'/revenue/monthly?' + qs({sales_team: f.sales_team, brand: f.brand}));
+    const data = await loadMonthlyRevenue(f);
 
     // Sum all months in the same year up to and including selected month
     const ytdMonths = data.filter(d => {
@@ -1168,8 +1230,12 @@ async function loadYTD(f) {
 
     // Sum targets for same months
     const ytdTarget = ytdMonths.reduce((s,d) => {
-      const t = targets.filter(t => t.year_month === d.year_month && (!f.sales_team || t.sales_team === f.sales_team))
-                       .reduce((ts,t) => ts + t.target, 0);
+      const t = targets.filter(t => {
+        if (t.year_month !== d.year_month) return false;
+        if (f.sales_team) return allStoreAliases(f.sales_team).includes(t.sales_team);
+        if (f.channel_group) return STORE_TO_CHANNEL[t.sales_team] === f.channel_group;
+        return true;
+      }).reduce((ts,t) => ts + t.target, 0);
       return s + t;
     }, 0);
 
@@ -1407,7 +1473,7 @@ async function loadBrands() {
   try {
     const [data, monthly, byChannel] = await Promise.all([
       api(API_PREFIX+'/revenue/by-brand?'+qs({year_month:f.year_month,sales_team:f.sales_team})),
-      api(API_PREFIX+'/revenue/monthly?'+qs({sales_team:f.sales_team,brand:f.brand})),
+      loadMonthlyRevenue(f),
       api(API_PREFIX+'/revenue/by-channel?'+qs({year_month:null,brand:f.brand})), // all months
     ]);
     renderBrandChart(data.slice(0,15));
