@@ -1166,7 +1166,7 @@ async function loadOverview() {
   try {
     const [ov,monthly,byChannel]=await Promise.all([
       api('/api/overview?'+qs(f)),
-      api('/api/revenue/monthly?'+qs({sales_team:f.sales_team,brand:f.brand})),
+      api('/api/revenue/monthly?'+qs({sales_team:f.sales_team,brand:f.brand,channel_group:f.channel_group})),
       api('/api/revenue/by-channel?'+qs({year_month:f.year_month,sales_team:f.sales_team,brand:f.brand})),
     ]);
 
@@ -1224,7 +1224,7 @@ async function loadYTD(f) {
   try {
     // Get the year from selected month, default to current year
     const year = f.year_month ? f.year_month.substring(0,4) : new Date().getFullYear().toString();
-    const data = await api('/api/revenue/monthly?' + qs({sales_team: f.sales_team, brand: f.brand}));
+    const data = await api('/api/revenue/monthly?' + qs({sales_team: f.sales_team, brand: f.brand, channel_group: f.channel_group}));
 
     // Sum all months in the same year up to and including selected month
     const ytdMonths = data.filter(d => {
@@ -1476,7 +1476,7 @@ async function loadBrands() {
   try {
     const [data, monthly, byChannel] = await Promise.all([
       api('/api/revenue/by-brand?'+qs({year_month:f.year_month,sales_team:f.sales_team})),
-      api('/api/revenue/monthly?'+qs({sales_team:f.sales_team,brand:f.brand})),
+      api('/api/revenue/monthly?'+qs({sales_team:f.sales_team,brand:f.brand,channel_group:f.channel_group})),
       api('/api/revenue/by-channel?'+qs({year_month:null,brand:f.brand})), // all months
     ]);
     renderBrandChart(data.slice(0,15));
