@@ -728,7 +728,7 @@ if(sessionStorage.getItem('mw_auth') !== '1') {
 </main>
 
 <script>
-const API = 'https://retail-intelligence-api-873728216699.asia-southeast1.run.app';
+const API = (location.hostname === 'localhost' || location.hostname === '127.0.0.1') ? 'http://localhost:8080' : 'https://retail-intelligence-api-873728216699.asia-southeast1.run.app';
 const API_KEY = '79c0b854d129467f127579a01b06204f77c6bc817722bf7ebf736d5df614f247';
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -1412,15 +1412,35 @@ async function loadChannels() {
   }
   try {
     const [data, prevData, yoyData]=await Promise.all([
-      api('/api/revenue/by-channel?'+qs({year_month:f.year_month,brand:f.brand})),
-      prevMonth ? api('/api/revenue/by-channel?'+qs({year_month:prevMonth,brand:f.brand})) : Promise.resolve([]),
-      api('/api/revenue/yoy?'+qs({brand:f.brand})),
+      api('/api/revenue/by-channel?'+qs({year_month:f.year_month,sales_team:f.sales_team,brand:f.brand,channel_group:f.channel_group})),
+      prevMonth ? api('/api/revenue/by-channel?'+qs({year_month:prevMonth,sales_team:f.sales_team,brand:f.brand,channel_group:f.channel_group})) : Promise.resolve([]),
+      api('/api/revenue/yoy?'+qs({sales_team:f.sales_team,brand:f.brand,channel_group:f.channel_group})),
     ]);
-    const displayData = channelView === 'channel' ? aggregateToChannels(data) : data;
-    const prevDisplayData = channelView === 'channel' ? aggregateToChannels(prevData) : prevData;
+
+    let filteredData = data;
+    let filteredPrevData = prevData;
+    let filteredYoyData = yoyData;
+
+    // Client-side backup filter for channel_group
+    if (f.channel_group) {
+      filteredData = filteredData.filter(d => STORE_TO_CHANNEL[d.sales_team] === f.channel_group);
+      filteredPrevData = filteredPrevData.filter(d => STORE_TO_CHANNEL[d.sales_team] === f.channel_group);
+      filteredYoyData = filteredYoyData.filter(d => STORE_TO_CHANNEL[d.sales_team] === f.channel_group);
+    }
+
+    // Client-side safety filter for store aliases
+    if (f.sales_team) {
+      const aliases = allStoreAliases(f.sales_team);
+      filteredData = filteredData.filter(d => aliases.includes(d.sales_team));
+      filteredPrevData = filteredPrevData.filter(d => aliases.includes(d.sales_team));
+      filteredYoyData = filteredYoyData.filter(d => aliases.includes(d.sales_team));
+    }
+
+    const displayData = channelView === 'channel' ? aggregateToChannels(filteredData) : filteredData;
+    const prevDisplayData = channelView === 'channel' ? aggregateToChannels(filteredPrevData) : filteredPrevData;
     renderChannelChart(displayData);
-    renderChannelTable(displayData, f, yoyData, prevDisplayData);
-    renderYoyChartInChannel(yoyData);
+    renderChannelTable(displayData, f, filteredYoyData, prevDisplayData);
+    renderYoyChartInChannel(filteredYoyData);
   } catch(e){console.error(e);}
 }
 
@@ -1493,9 +1513,16 @@ function renderChannelTable(data, f, yoyData=[], prevData=[]) {
     // Target & attainment
     let tVal = null;
     if(f.year_month) {
-      tVal = channelView === 'channel'
-        ? getChannelGroupTarget(f.year_month, d.sales_team)
-        : targets.filter(t => t.year_month===f.year_month && allStoreAliases(d.sales_team).includes(t.sales_team)).reduce((s,t)=>s+t.target,0) || null;
+      if (channelView === 'channel') {
+        tVal = targets.filter(t => {
+          if (t.year_month !== f.year_month) return false;
+          if (STORE_TO_CHANNEL[t.sales_team] !== d.sales_team) return false;
+          if (f.sales_team) return allStoreAliases(f.sales_team).includes(t.sales_team);
+          return true;
+        }).reduce((s,t) => s + t.target, 0) || null;
+      } else {
+        tVal = targets.filter(t => t.year_month===f.year_month && allStoreAliases(d.sales_team).includes(t.sales_team)).reduce((s,t)=>s+t.target,0) || null;
+      }
     }
     const att = tVal ? (d.total_revenue/tVal*100) : null;
     const barW = att ? Math.min(att,150) : 0;
