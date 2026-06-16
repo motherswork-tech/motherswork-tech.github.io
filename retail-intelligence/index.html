@@ -1164,33 +1164,7 @@ async function loadMonthlyRevenue(f) {
   if (f.sales_team || !f.channel_group) {
     return api('/api/revenue/monthly?' + qs({sales_team: f.sales_team, brand: f.brand}));
   }
-  const channelGroup = f.channel_group;
-  const storesInGroup = Object.keys(STORE_TO_CHANNEL).filter(store => STORE_TO_CHANNEL[store] === channelGroup);
-  const storesData = await Promise.all(
-    storesInGroup.map(store => 
-      api('/api/revenue/monthly?' + qs({sales_team: store, brand: f.brand})).catch(() => [])
-    )
-  );
-  const monthlyMap = {};
-  storesData.forEach(storeData => {
-    storeData.forEach(d => {
-      if (!d.year_month) return;
-      if (!monthlyMap[d.year_month]) {
-        monthlyMap[d.year_month] = {
-          year_month: d.year_month,
-          total_revenue: 0,
-          total_net_revenue: 0,
-          total_qty: 0,
-          transaction_count: 0
-        };
-      }
-      monthlyMap[d.year_month].total_revenue += d.total_revenue || 0;
-      monthlyMap[d.year_month].total_net_revenue += d.total_net_revenue || 0;
-      monthlyMap[d.year_month].total_qty += d.total_qty || 0;
-      monthlyMap[d.year_month].transaction_count += d.transaction_count || 0;
-    });
-  });
-  return Object.values(monthlyMap).sort((a,b) => a.year_month.localeCompare(b.year_month));
+  return api('/api/revenue/monthly?' + qs({channel_group: f.channel_group, brand: f.brand}));
 }
 
 // OVERVIEW
