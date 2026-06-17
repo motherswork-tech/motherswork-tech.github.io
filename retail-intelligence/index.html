@@ -1736,12 +1736,15 @@ async function loadProducts() {
 
   const productParams = {
     year_month: f.year_month,
-    sales_team: f.sales_team,
     brand: f.brand,
-    channel_group: f.channel_group,
     product_name: productFilter||'',
     limit: 50
   };
+  if (f.sales_team) {
+    productParams.sales_team = f.sales_team;
+  } else if (f.channel_group) {
+    productParams.channel_group = f.channel_group;
+  }
   const productParamsPrev = {...productParams, year_month: prevMonth||'', limit: 50};
 
   try {
@@ -1820,14 +1823,20 @@ async function renderProductChannelPie(f, productFilter) {
 async function loadProductMomTrend(f, last6Months, topProducts, productFilter) {
   try {
     const monthDataArr = await Promise.all(
-      last6Months.map(m => api('/api/products/top?' + qs({
-        year_month: m,
-        brand: f.brand,
-        sales_team: f.sales_team,
-        channel_group: f.channel_group,
-        product_name: productFilter||'',
-        limit: 10
-      })).catch(()=>[]))
+      last6Months.map(m => {
+        const trendParams = {
+          year_month: m,
+          brand: f.brand,
+          product_name: productFilter||'',
+          limit: 10
+        };
+        if (f.sales_team) {
+          trendParams.sales_team = f.sales_team;
+        } else if (f.channel_group) {
+          trendParams.channel_group = f.channel_group;
+        }
+        return api('/api/products/top?' + qs(trendParams)).catch(()=>[]);
+      })
     );
 
     // Build product list: use top products from current month
