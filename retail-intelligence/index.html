@@ -365,7 +365,10 @@ if(sessionStorage.getItem('mw_auth') !== '1') {
     <!-- MoM stacked bar chart by channel -->
     <div class="chart-card" style="margin-bottom:20px;">
       <div class="chart-header">
-        <div><div class="chart-title">MoM Revenue by Channel</div><div class="chart-sub">Last 24 months · filtered by selected brand</div></div>
+        <div>
+          <div class="chart-title">MoM Revenue by Channel</div>
+          <div class="chart-sub" id="brandMoMSub">Last 24 months · filtered by selected brand</div>
+        </div>
       </div>
       <div class="chart-wrap"><canvas id="chartBrandMoM" style="max-height:320px;"></canvas></div>
     </div>
@@ -1542,47 +1545,49 @@ async function loadBrands() {
   const f=filters();
   try {
     const [data, monthly, byChannel] = await Promise.all([
-      api('/api/revenue/by-brand?'+qs({year_month:f.year_month,sales_team:f.sales_team})),
+      api('/api/revenue/by-brand?'+qs({year_month:f.year_month,sales_team:f.sales_team,channel_group:f.channel_group})),
       loadMonthlyRevenue(f),
       api('/api/revenue/by-channel?'+qs({year_month:null,brand:f.brand})), // all months
     ]);
     renderBrandChart(data.slice(0,15));
-    renderBrandMoMChart(f.brand);
+    renderBrandMoMChart(f.brand, f.channel_group, f.sales_team);
     renderBrandTable(data);
   } catch(e){console.error(e);}
 }
 
-async function renderBrandMoMChart(selectedBrand) {
+async function renderBrandMoMChart(selectedBrand, selectedChannelGroup, selectedSalesTeam) {
   destroyChart('brandMoM');
   try {
     const channelColors = {'Offline':'#1e5ef5','Online':'#14b8a6','Wholesale':'#f59e0b'};
+    const channelGroups = selectedChannelGroup ? [selectedChannelGroup] : ['Offline','Online','Wholesale'];
 
-    // Fetch monthly revenue for each channel group in parallel — 3 calls total
-    const [offlineData, onlineData, wholesaleData] = await Promise.all([
-      api('/api/revenue/monthly?' + qs({brand: selectedBrand||'', channel_group: 'Offline'})),
-      api('/api/revenue/monthly?' + qs({brand: selectedBrand||'', channel_group: 'Online'})),
-      api('/api/revenue/monthly?' + qs({brand: selectedBrand||'', channel_group: 'Wholesale'})),
-    ]);
+    // Get all store data month by month (using the brand + sales_team filter)
+    const allMonthly = await api('/api/revenue/monthly?'+qs({brand: selectedBrand||'', sales_team: selectedSalesTeam||''}));
+    const last24 = allMonthly.slice(-24);
+    const labels = last24.map(d => d.year_month);
 
-    // Build a unified month list from all three
-    const allMonthsSet = new Set([
-      ...offlineData.map(d => d.year_month),
-      ...onlineData.map(d => d.year_month),
-      ...wholesaleData.map(d => d.year_month),
-    ]);
-    const labels = [...allMonthsSet].filter(Boolean).sort().slice(-24);
+    // Update subtitle
+    const sub = document.getElementById('brandMoMSub');
+    if (sub) {
+      const parts = ['Last 24 months'];
+      if (selectedBrand) parts.push(selectedBrand);
+      if (selectedChannelGroup) parts.push(selectedChannelGroup);
+      if (selectedSalesTeam) parts.push(STORE_LABELS[selectedSalesTeam] || selectedSalesTeam);
+      sub.textContent = parts.join(' · ');
+    }
 
-    // Build lookup maps
-    const toMap = arr => Object.fromEntries(arr.map(d => [d.year_month, d.total_revenue || 0]));
-    const offMap = toMap(offlineData);
-    const onMap  = toMap(onlineData);
-    const whMap  = toMap(wholesaleData);
-
-    const datasets = [
-      { label: 'Offline',   data: labels.map(m => offMap[m] || 0), backgroundColor: channelColors['Offline'],   borderWidth: 0 },
-      { label: 'Online',    data: labels.map(m => onMap[m]  || 0), backgroundColor: channelColors['Online'],    borderWidth: 0 },
-      { label: 'Wholesale', data: labels.map(m => whMap[m]  || 0), backgroundColor: channelColors['Wholesale'], borderWidth: 0 },
-    ];
+    // For each channel group, fetch monthly breakdown
+    const datasets = await Promise.all(channelGroups.map(async ch => {
+      const channelData = await api('/api/revenue/monthly?' + qs({channel_group: ch, brand: selectedBrand||'', sales_team: selectedSalesTeam||''})).catch(()=>[]);
+      const monthMap = {};
+      channelData.forEach(d => { monthMap[d.year_month] = d.total_revenue || 0; });
+      return {
+        label: ch,
+        data: labels.map(m => monthMap[m]||0),
+        backgroundColor: channelColors[ch],
+        borderWidth: 0,
+      };
+    }));
 
     const ctx = document.getElementById('chartBrandMoM').getContext('2d');
     charts['brandMoM'] = new Chart(ctx, {
