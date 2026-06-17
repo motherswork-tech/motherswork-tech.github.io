@@ -1476,7 +1476,13 @@ function renderChannelTable(data, f, yoyData=[], prevData=[]) {
 async function loadBrands() {
   const f = filters();
   try {
-    const data = await api(API_PREFIX+'/revenue/by-brand?'+qs({year_month:f.year_month, sales_team:f.sales_team, channel_group:f.channel_group}));
+    const apiParams = { year_month: f.year_month };
+    if (f.sales_team) {
+      apiParams.sales_team = f.sales_team;
+    } else if (f.channel_group) {
+      apiParams.channel_group = f.channel_group;
+    }
+    const data = await api(API_PREFIX+'/revenue/by-brand?'+qs(apiParams));
     renderBrandChart(data.slice(0, 15));
     renderBrandMoMChart(f.brand, f.channel_group, f.sales_team);
     renderBrandTable(data);
@@ -1487,11 +1493,16 @@ async function renderBrandMoMChart(selectedBrand, selectedChannelGroup, selected
   destroyChart('brandMoM');
   try {
     const channelColors = {'Offline':'#1e5ef5','Online':'#14b8a6','Wholesale':'#f59e0b'};
-    // If a specific channel is selected, only show that; otherwise show all 3 stacked
     const channelGroups = selectedChannelGroup ? [selectedChannelGroup] : ['Offline','Online','Wholesale'];
 
-    // Get monthly totals for labels (using the brand + sales_team filter)
-    const allMonthly = await api(API_PREFIX+'/revenue/monthly?'+qs({brand: selectedBrand||'', sales_team: selectedSalesTeam||''}));
+    // Get all store data month by month (using the brand + sales_team filter)
+    const labelParams = { brand: selectedBrand||'' };
+    if (selectedSalesTeam) {
+      labelParams.sales_team = selectedSalesTeam;
+    } else if (selectedChannelGroup) {
+      labelParams.channel_group = selectedChannelGroup;
+    }
+    const allMonthly = await api(API_PREFIX+'/revenue/monthly?'+qs(labelParams));
     const last24 = allMonthly.slice(-24);
     const labels = last24.map(d => d.year_month);
 
@@ -1505,18 +1516,32 @@ async function renderBrandMoMChart(selectedBrand, selectedChannelGroup, selected
       sub.textContent = parts.join(' · ');
     }
 
-    // For each channel group, fetch monthly breakdown
-    const datasets = await Promise.all(channelGroups.map(async ch => {
-      const channelData = await api(API_PREFIX+'/revenue/monthly?'+qs({channel_group:ch, brand:selectedBrand||'', sales_team:selectedSalesTeam||''})).catch(()=>[]);
+    // Fetch datasets: if a store is selected, we query just that store; otherwise we query per channel
+    let datasets = [];
+    if (selectedSalesTeam) {
+      const storeData = await api(API_PREFIX+'/revenue/monthly?'+qs({brand: selectedBrand||'', sales_team: selectedSalesTeam})).catch(()=>[]);
       const monthMap = {};
-      channelData.forEach(d => { monthMap[d.year_month] = d.total_revenue || 0; });
-      return {
-        label: ch,
+      storeData.forEach(d => { monthMap[d.year_month] = d.total_revenue || 0; });
+      const ch = STORE_TO_CHANNEL[selectedSalesTeam] || 'Offline';
+      datasets = [{
+        label: STORE_LABELS[selectedSalesTeam] || selectedSalesTeam,
         data: labels.map(m => monthMap[m]||0),
-        backgroundColor: channelColors[ch],
+        backgroundColor: channelColors[ch] || '#1e5ef5',
         borderWidth: 0,
-      };
-    }));
+      }];
+    } else {
+      datasets = await Promise.all(channelGroups.map(async ch => {
+        const channelData = await api(API_PREFIX+'/revenue/monthly?'+qs({channel_group:ch, brand:selectedBrand||''})).catch(()=>[]);
+        const monthMap = {};
+        channelData.forEach(d => { monthMap[d.year_month] = d.total_revenue || 0; });
+        return {
+          label: ch,
+          data: labels.map(m => monthMap[m]||0),
+          backgroundColor: channelColors[ch],
+          borderWidth: 0,
+        };
+      }));
+    }
 
     const ctx = document.getElementById('chartBrandMoM').getContext('2d');
     charts['brandMoM'] = new Chart(ctx, {
