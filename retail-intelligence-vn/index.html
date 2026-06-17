@@ -356,6 +356,38 @@ if(sessionStorage.getItem('mw_auth') !== '1') {
   </div>
 
   <div id="page-brands" class="page">
+
+    <!-- BRANDS LOCAL FILTER BAR -->
+    <div id="brandFilterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;">Brand Filter</span>
+
+      <div class="filter-group">
+        <span class="filter-label">Month</span>
+        <select id="bfMonth" onchange="applyBrandFilters()">
+          <option value="">All Months</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Channel</span>
+        <select id="bfChannelGroup" onchange="onBrandChannelGroupChange()">
+          <option value="">All Channels</option>
+          <option value="Offline">Offline</option>
+          <option value="Online">Online</option>
+          <option value="Wholesale">Wholesale</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <span class="filter-label">Store</span>
+        <select id="bfChannel" onchange="applyBrandFilters()">
+          <option value="">All Stores</option>
+        </select>
+      </div>
+
+      <button class="btn btn-ghost" onclick="resetBrandFilters()" style="font-size:11px;">Reset</button>
+    </div>
+
     <!-- Top 15 bar chart -->
     <div class="chart-card" style="margin-bottom:20px;">
       <div class="chart-header"><div><div class="chart-title">Top 15 Brands by Revenue</div></div></div>
@@ -365,7 +397,10 @@ if(sessionStorage.getItem('mw_auth') !== '1') {
     <!-- MoM stacked bar chart by channel -->
     <div class="chart-card" style="margin-bottom:20px;">
       <div class="chart-header">
-        <div><div class="chart-title">MoM Revenue by Channel</div><div class="chart-sub">Last 24 months · filtered by selected brand</div></div>
+        <div>
+          <div class="chart-title">MoM Revenue by Channel</div>
+          <div class="chart-sub" id="brandMoMSub">Last 24 months · filtered by selected brand</div>
+        </div>
       </div>
       <div class="chart-wrap"><canvas id="chartBrandMoM" style="max-height:320px;"></canvas></div>
     </div>
@@ -934,6 +969,9 @@ async function init() {
     // Store canonical list on meta for later use
     meta.canonical_stores = canonicalStores;
 
+    // Init brand-local filter dropdowns
+    initBrandFilters();
+
     const fBrand=document.getElementById('fBrandSearch');
     populateBrandDropdown(meta.brands);
 
@@ -1468,38 +1506,107 @@ function renderChannelTable(data, f, yoyData=[], prevData=[]) {
   }).join('');
 }
 
-// BRANDS
-async function loadBrands() {
-  const f=filters();
-  try {
-    const [data, monthly, byChannel] = await Promise.all([
-      api(API_PREFIX+'/revenue/by-brand?'+qs({year_month:f.year_month,sales_team:f.sales_team})),
-      loadMonthlyRevenue(f),
-      api(API_PREFIX+'/revenue/by-channel?'+qs({year_month:null,brand:f.brand})), // all months
-    ]);
-    renderBrandChart(data.slice(0,15));
-    renderBrandMoMChart(f.brand);
-    renderBrandTable(data);
-  } catch(e){console.error(e);}
+// ─── BRANDS LOCAL FILTER HELPERS ────────────────────────────────────────────
+function brandFilters() {
+  const rawStore = document.getElementById('bfChannel').value;
+  const resolvedStore = rawStore ? storePrimary(rawStore) : '';
+  return {
+    year_month:    document.getElementById('bfMonth').value,
+    sales_team:    resolvedStore,
+    channel_group: document.getElementById('bfChannelGroup').value,
+    brand:         document.getElementById('fBrand').value, // shared brand dropdown
+  };
 }
 
-async function renderBrandMoMChart(selectedBrand) {
+function initBrandFilters() {
+  // Populate Month
+  const bfMonth = document.getElementById('bfMonth');
+  bfMonth.innerHTML = '<option value="">All Months</option>';
+  (meta.months || []).forEach(m => {
+    const o = document.createElement('option'); o.value = m; o.textContent = m;
+    bfMonth.appendChild(o);
+  });
+  if (meta.months && meta.months.length) bfMonth.value = meta.months[meta.months.length - 1];
+
+  // Populate Store
+  const bfChannel = document.getElementById('bfChannel');
+  bfChannel.innerHTML = '<option value="">All Stores</option>';
+  const stores = meta.canonical_stores || getCanonicalStores(meta.sales_teams);
+  stores.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = STORE_LABELS[s] || s;
+    bfChannel.appendChild(o);
+  });
+}
+
+function applyBrandFilters() { loadBrands(); }
+
+function onBrandChannelGroupChange() {
+  const group = document.getElementById('bfChannelGroup').value;
+  const storeSelect = document.getElementById('bfChannel');
+  storeSelect.innerHTML = '<option value="">All Stores</option>';
+  const stores = meta.canonical_stores || getCanonicalStores(meta.sales_teams);
+  stores.forEach(s => {
+    if (!group || STORE_TO_CHANNEL[s] === group) {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = STORE_LABELS[s] || s;
+      storeSelect.appendChild(o);
+    }
+  });
+  storeSelect.value = '';
+  loadBrands();
+}
+
+function resetBrandFilters() {
+  document.getElementById('bfChannelGroup').value = '';
+  document.getElementById('bfMonth').value = (meta.months && meta.months.length) ? meta.months[meta.months.length-1] : '';
+  const bfChannel = document.getElementById('bfChannel');
+  bfChannel.innerHTML = '<option value="">All Stores</option>';
+  const stores = meta.canonical_stores || getCanonicalStores(meta.sales_teams);
+  stores.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = STORE_LABELS[s] || s;
+    bfChannel.appendChild(o);
+  });
+  loadBrands();
+}
+
+// BRANDS
+async function loadBrands() {
+  const f = brandFilters();
+  try {
+    const data = await api(API_PREFIX+'/revenue/by-brand?'+qs({year_month:f.year_month, sales_team:f.sales_team, channel_group:f.channel_group}));
+    renderBrandChart(data.slice(0, 15));
+    renderBrandMoMChart(f.brand, f.channel_group, f.sales_team);
+    renderBrandTable(data);
+  } catch(e){ console.error(e); }
+}
+
+async function renderBrandMoMChart(selectedBrand, selectedChannelGroup, selectedSalesTeam) {
   destroyChart('brandMoM');
   try {
-    // Fetch monthly data per channel for last 24 months
-    const channelGroups = ['Offline','Online','Wholesale'];
     const channelColors = {'Offline':'#1e5ef5','Online':'#14b8a6','Wholesale':'#f59e0b'};
+    // If a specific channel is selected, only show that; otherwise show all 3 stacked
+    const channelGroups = selectedChannelGroup ? [selectedChannelGroup] : ['Offline','Online','Wholesale'];
 
-    // Get all store data month by month
-    const allMonthly = await api(API_PREFIX+'/revenue/monthly?'+qs({brand: selectedBrand||''}));
+    // Get monthly totals for labels (using the brand + sales_team filter)
+    const allMonthly = await api(API_PREFIX+'/revenue/monthly?'+qs({brand: selectedBrand||'', sales_team: selectedSalesTeam||''}));
     const last24 = allMonthly.slice(-24);
     const labels = last24.map(d => d.year_month);
 
+    // Update subtitle
+    const sub = document.getElementById('brandMoMSub');
+    if (sub) {
+      const parts = ['Last 24 months'];
+      if (selectedBrand) parts.push(selectedBrand);
+      if (selectedChannelGroup) parts.push(selectedChannelGroup);
+      if (selectedSalesTeam) parts.push(STORE_LABELS[selectedSalesTeam] || selectedSalesTeam);
+      sub.textContent = parts.join(' · ');
+    }
+
     // For each channel group, fetch monthly breakdown
     const datasets = await Promise.all(channelGroups.map(async ch => {
-      // Fetch monthly for the channel group directly
-      const channelData = await api(API_PREFIX+'/revenue/monthly?'+qs({channel_group:ch,brand:selectedBrand||''})).catch(()=>[]);
-      // Build month → revenue map
+      const channelData = await api(API_PREFIX+'/revenue/monthly?'+qs({channel_group:ch, brand:selectedBrand||'', sales_team:selectedSalesTeam||''})).catch(()=>[]);
       const monthMap = {};
       channelData.forEach(d => { monthMap[d.year_month] = d.total_revenue || 0; });
       return {
@@ -1522,7 +1629,7 @@ async function renderBrandMoMChart(selectedBrand) {
         },
         scales: {
           x: { stacked:true, grid:{color:'rgba(30,60,120,0.06)'}, ticks:{color:'#94a3b8',font:{family:'DM Mono',size:9},maxRotation:45}},
-          y: { stacked:true, grid:{color:'rgba(30,60,120,0.06)'}, ticks:{color:'#94a3b8',font:{family:'DM Mono',size:9},callback:v=>'S$'+(v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':v)}}
+          y: { stacked:true, grid:{color:'rgba(30,60,120,0.06)'}, ticks:{color:'#94a3b8',font:{family:'DM Mono',size:9},callback:v=>'₫'+(v>=1000000?(v/1000000).toFixed(1)+'M':v>=1000?(v/1000).toFixed(0)+'K':v)}}
         }
       }
     });
