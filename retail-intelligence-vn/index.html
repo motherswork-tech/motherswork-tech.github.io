@@ -357,37 +357,6 @@ if(sessionStorage.getItem('mw_auth') !== '1') {
 
   <div id="page-brands" class="page">
 
-    <!-- BRANDS LOCAL FILTER BAR -->
-    <div id="brandFilterBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:12px;">
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;">Brand Filter</span>
-
-      <div class="filter-group">
-        <span class="filter-label">Month</span>
-        <select id="bfMonth" onchange="applyBrandFilters()">
-          <option value="">All Months</option>
-        </select>
-      </div>
-
-      <div class="filter-group">
-        <span class="filter-label">Channel</span>
-        <select id="bfChannelGroup" onchange="onBrandChannelGroupChange()">
-          <option value="">All Channels</option>
-          <option value="Offline">Offline</option>
-          <option value="Online">Online</option>
-          <option value="Wholesale">Wholesale</option>
-        </select>
-      </div>
-
-      <div class="filter-group">
-        <span class="filter-label">Store</span>
-        <select id="bfChannel" onchange="applyBrandFilters()">
-          <option value="">All Stores</option>
-        </select>
-      </div>
-
-      <button class="btn btn-ghost" onclick="resetBrandFilters()" style="font-size:11px;">Reset</button>
-    </div>
-
     <!-- Top 15 bar chart -->
     <div class="chart-card" style="margin-bottom:20px;">
       <div class="chart-header"><div><div class="chart-title">Top 15 Brands by Revenue</div></div></div>
@@ -969,9 +938,6 @@ async function init() {
     // Store canonical list on meta for later use
     meta.canonical_stores = canonicalStores;
 
-    // Init brand-local filter dropdowns
-    initBrandFilters();
-
     const fBrand=document.getElementById('fBrandSearch');
     populateBrandDropdown(meta.brands);
 
@@ -1506,74 +1472,9 @@ function renderChannelTable(data, f, yoyData=[], prevData=[]) {
   }).join('');
 }
 
-// ─── BRANDS LOCAL FILTER HELPERS ────────────────────────────────────────────
-function brandFilters() {
-  const rawStore = document.getElementById('bfChannel').value;
-  const resolvedStore = rawStore ? storePrimary(rawStore) : '';
-  return {
-    year_month:    document.getElementById('bfMonth').value,
-    sales_team:    resolvedStore,
-    channel_group: document.getElementById('bfChannelGroup').value,
-    brand:         document.getElementById('fBrand').value, // shared brand dropdown
-  };
-}
-
-function initBrandFilters() {
-  // Populate Month
-  const bfMonth = document.getElementById('bfMonth');
-  bfMonth.innerHTML = '<option value="">All Months</option>';
-  (meta.months || []).forEach(m => {
-    const o = document.createElement('option'); o.value = m; o.textContent = m;
-    bfMonth.appendChild(o);
-  });
-  if (meta.months && meta.months.length) bfMonth.value = meta.months[meta.months.length - 1];
-
-  // Populate Store
-  const bfChannel = document.getElementById('bfChannel');
-  bfChannel.innerHTML = '<option value="">All Stores</option>';
-  const stores = meta.canonical_stores || getCanonicalStores(meta.sales_teams);
-  stores.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = STORE_LABELS[s] || s;
-    bfChannel.appendChild(o);
-  });
-}
-
-function applyBrandFilters() { loadBrands(); }
-
-function onBrandChannelGroupChange() {
-  const group = document.getElementById('bfChannelGroup').value;
-  const storeSelect = document.getElementById('bfChannel');
-  storeSelect.innerHTML = '<option value="">All Stores</option>';
-  const stores = meta.canonical_stores || getCanonicalStores(meta.sales_teams);
-  stores.forEach(s => {
-    if (!group || STORE_TO_CHANNEL[s] === group) {
-      const o = document.createElement('option');
-      o.value = s; o.textContent = STORE_LABELS[s] || s;
-      storeSelect.appendChild(o);
-    }
-  });
-  storeSelect.value = '';
-  loadBrands();
-}
-
-function resetBrandFilters() {
-  document.getElementById('bfChannelGroup').value = '';
-  document.getElementById('bfMonth').value = (meta.months && meta.months.length) ? meta.months[meta.months.length-1] : '';
-  const bfChannel = document.getElementById('bfChannel');
-  bfChannel.innerHTML = '<option value="">All Stores</option>';
-  const stores = meta.canonical_stores || getCanonicalStores(meta.sales_teams);
-  stores.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = STORE_LABELS[s] || s;
-    bfChannel.appendChild(o);
-  });
-  loadBrands();
-}
-
 // BRANDS
 async function loadBrands() {
-  const f = brandFilters();
+  const f = filters();
   try {
     const data = await api(API_PREFIX+'/revenue/by-brand?'+qs({year_month:f.year_month, sales_team:f.sales_team, channel_group:f.channel_group}));
     renderBrandChart(data.slice(0, 15));
