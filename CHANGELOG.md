@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-02
+
+### Fixed
+- fix(retail-intelligence): map Kris Shop to Online channel group — the raw `sales_team` value `"Kris Shop"` was missing from `STORE_TO_CHANNEL`, causing it to fall into the "Other" bucket in channel breakdown charts instead of Online
+
 ## [1.1.0] - 2026-06-17
 
 ### Added
@@ -32,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - fix(config): update API base URL to new Cloud Run endpoint
 - fix(auth): add X-Api-Key header to all mutation API calls
 
-[Unreleased]: https://github.com/motherswork-tech/motherswork-tech.github.io/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/motherswork-tech/motherswork-tech.github.io/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/motherswork-tech/motherswork-tech.github.io/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/motherswork-tech/motherswork-tech.github.io/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/motherswork-tech/motherswork-tech.github.io/releases/tag/v1.0.0
